@@ -5,6 +5,7 @@ edition = "2021"
 authors = [ "Tom Whitehead <t.j.whitehead21@gmail.com>", ]
 description = "HDBSCAN clustering in pure Rust"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/tom-whitehead/hdbscan"
 readme = "README.md"
 keywords = ["machine-learning", "clustering", "ai", "ml", "unsupervised"]
 categories = ["algorithms", "mathematics", "science"]
