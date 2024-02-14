@@ -3,7 +3,6 @@ use crate::distance::DistanceMetric;
 
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
 const ALLOW_SINGLE_CLUSTER_DEFAULT: bool = false;
-const EPSILON_DEFAULT: f64 = 0.0;
 const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
 
 /// A wrapper around the various hyper parameters used in HDBSCAN clustering.
@@ -13,7 +12,6 @@ pub struct HdbscanHyperParams {
     pub(crate) min_cluster_size: usize,
     pub(crate) allow_single_cluster: bool,
     pub(crate) min_samples: usize,
-    pub(crate) epsilon: f64,
     pub(crate) dist_metric: DistanceMetric,
 }
 
@@ -22,7 +20,6 @@ pub struct HyperParamBuilder {
     min_cluster_size: Option<usize>,
     allow_single_cluster: Option<bool>,
     min_samples: Option<usize>,
-    epsilon: Option<f64>,
     dist_metric: Option<DistanceMetric>,
 }
 
@@ -41,7 +38,6 @@ impl HdbscanHyperParams {
             min_cluster_size: None,
             allow_single_cluster: None,
             min_samples: None,
-            epsilon: None,
             dist_metric: None,
         }
     }
@@ -94,21 +90,6 @@ impl HyperParamBuilder {
         self
     }
 
-    /// NOT IMPLEMENTED YET. WILL PANIC IF CALL.
-    /// Sets cluster selection epsilon. Epsilon is a density threshold, below which point
-    /// clusters will not be considered. By not setting this value, HDBSCAN will select the clusters
-    /// that persist the longest at all densities (i.e. the longest lived clusters). Setting a 
-    /// Defaults to 0.0, allowing clusters of all densities.
-    ///
-    /// # Parameters
-    /// * epsilon - the minimum density, below which clusters will be discarded.
-    ///
-    /// # Returns
-    /// * the hyper parameter configuration builder
-    pub fn epsilon(mut self, epsilon: f64) -> HyperParamBuilder {
-        todo!()
-    }
-
     /// Sets the distance metric. HDBSCAN uses this metric to calculate the distance between data points.
     /// Defaults to Euclidean. Options are defined by the DistanceMetric enum.
     ///
@@ -136,15 +117,10 @@ impl HyperParamBuilder {
         // Can't be less than 1
         min_samples = cmp::max(min_samples, 1);
 
-        let mut epsilon = self.epsilon.unwrap_or(EPSILON_DEFAULT);
-        // Can't be less than 0.0
-        epsilon = epsilon.max(0.0);
-
         HdbscanHyperParams {
             min_cluster_size,
             allow_single_cluster: self.allow_single_cluster.unwrap_or(ALLOW_SINGLE_CLUSTER_DEFAULT),
             min_samples,
-            epsilon,
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),
         }
     }
