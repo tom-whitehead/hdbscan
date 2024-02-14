@@ -1,0 +1,9 @@
+[package]
+name = "hdbscan"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+kdtree = "0.7.0"
+num-traits = "0.2.18"
