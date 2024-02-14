@@ -2,6 +2,12 @@
 name = "hdbscan"
 version = "0.1.0"
 edition = "2021"
+authors = [ "Tom Whitehead <t.j.whitehead21@gmail.com>", ]
+description = "HDBSCAN clustering in pure Rust"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["machine-learning", "clustering", "ai", "ml", "unsupervised"]
+categories = ["algorithms", "mathematics", "science"]
 
 
 [dependencies]
