@@ -1,19 +1,21 @@
 //! Hierarchical Density-Based Spatial Clustering of Applications with Noise ("HDBSCAN") clustering
 //! algorithm in Rust. Generic over floating point numeric types.
 //!
-//! HDBSCAN is a powerful clustering algorithm that can be used to effectively find clusters in real world data.
-//! The main benefits of HDBSCAN are that:
-//!  1. It does not assume that all data points belong to a cluster, as many clustering algorithms do. I.e. a data set
-//!     can contain "noise" points. This is important for modelling real world data, which is inherently noisy;
-//!  2. It allows clusters of varying densities, unlike the plain DBSCAN algorithm which uses a static density
-//!     threshold. The winning clusters are those that persist the longest at a all densities. This is also crucial
-//!     for modelling real world data; and
-//!  3. It makes no assumptions about the number of clusters there have to be, unlike KMeans clustering. The algorithm
-//!     will select just select the clusters that are the most persistent at all densities.
+//! HDBSCAN is a powerful clustering algorithm that can be used to effectively find clusters in
+//! real world data. The main benefits of HDBSCAN are that:
+//!  1. It does not assume that all data points belong to a cluster, as many clustering algorithms
+//!     do. I.e. a data set can contain "noise" points. This is important for modelling real world
+//!     data, which is inherently noisy;
+//!  2. It allows clusters of varying densities, unlike the plain DBSCAN algorithm which uses a
+//!     static density threshold. The winning clusters are those that persist the longest at all
+//!     densities. This is also crucial for modelling real world data; and
+//!  3. It makes no assumptions about the number of clusters there have to be, unlike KMeans
+//!     clustering. The algorithm will select just select the clusters that are the most persistent
+//!     at all densities.
 //!
-//! This implementation owes a debt to the Python scikit-learn implementation of this algorithm, without which this
-//! algorithm would not have been possible. The "How HDBSCAN works" article below is invaluable in understanding this
-//! algorithm better.
+//! This implementation owes a debt to the Python scikit-learn implementation of this algorithm,
+//! without which this algorithm would not have been possible. The "How HDBSCAN works" article
+//! below is invaluable in understanding this algorithm better.
 //!
 //! # Examples
 //! ```
@@ -68,11 +70,13 @@ pub struct Hdbscan<'a, T> {
 
 impl<'a, T: Float> Hdbscan<'a, T> {
 
-    /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter configuration.
+    /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
+    /// configuration.
     ///
     /// # Parameters
-    /// * `data` - the data to cluster, a collection of vectors of floating points numbers. The vectors
-    ///            must all be of the same dimensionality and contain no infinite values.
+    /// * `data` - a reference to the data to cluster, a collection of vectors of floating points
+    ///            numbers. The vectors must all be of the same dimensionality and contain no
+    ///            infinite values.
     /// * `config` - the hyper parameter configuration.
     ///
     /// # Returns
@@ -108,8 +112,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
     ///
     /// # Parameters
-    /// * `data` - the data to cluster, a collection of vectors of floating points numbers.  The vectors
-    ///            must all be of the same dimensionality and contain no infinite values.
+    /// * `data` - a reference to the data to cluster, a collection of vectors of floating points
+    ///            numbers. The vectors must all be of the same dimensionality and contain no
+    ///            infinite values.
     ///
     /// # Returns
     /// * The HDBSCAN model instance.
@@ -138,11 +143,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// Performs clustering on the list of vectors passed to the constructor.
     ///
     /// # Returns
-    /// * A result that, if successful, contains a list of cluster labels, with a length equal to the number
-    ///   of samples passed to the constructor. Positive integers mean a data point belongs to a cluster of that
-    ///   label. -1 labels mean that a data point is noise and does not belong to any cluster.
-    ///   An Error will be returned if the dimensionality of the input vectors are mismatched, if any vector contains
-    ///   non-finite coordinates, or if the passed data set is empty.
+    /// * A result that, if successful, contains a list of cluster labels, with a length equal to
+    ///   the numbe of samples passed to the constructor. Positive integers mean a data point
+    ///   belongs to a cluster of that label. -1 labels mean that a data point is noise and does
+    ///   not belong to any cluster. An Error will be returned if the dimensionality of the input
+    ///   vectors are mismatched, if any vector contains non-finite coordinates, or if the passed
+    ///   data set is empty.
     ///
     /// # Examples
     /// ```
@@ -221,7 +227,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn prims_min_spanning_tree(&self, core_distances: &Vec<T>) -> Vec<MSTEdge<T>> {
-        // TODO: Move out to a dedicated object and inject to make it easier to use other mst algorithms
+        // TODO: Move out to a dedicated object and inject to enable use of other mst algorithms
         let mut in_tree = vec![false; self.n_samples];
         let mut distances = vec![T::infinity(); self.n_samples];
         let mut parents = vec![0; self.n_samples];
@@ -345,9 +351,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             } else if !is_left_a_cluster && !is_right_a_cluster {
                 let new_node_id = new_node_ids[node_id];
                 self.process_individual_children(
-                    left_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree, &mut visited, lambda_birth);
+                    left_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree,
+                    &mut visited, lambda_birth);
                 self.process_individual_children(
-                    right_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree, &mut visited, lambda_birth);
+                    right_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree,
+                    &mut visited, lambda_birth);
 
             } else if !is_left_a_cluster {
                 new_node_ids[right_child_id] = new_node_ids[node_id];
@@ -365,7 +373,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         condensed_tree
     }
 
-    fn find_slt_children_breadth_first(&self, single_linkage_tree: &Vec<SLTNode<T>>, root: usize) -> Vec<usize> {
+    fn find_slt_children_breadth_first(
+        &self,
+        single_linkage_tree: &Vec<SLTNode<T>>,
+        root: usize
+    ) -> Vec<usize> {
         let mut process_queue = VecDeque::from([root]);
         let mut child_nodes: Vec<usize> = Vec::new();
 
@@ -410,8 +422,14 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn process_individual_children(
-        &self, node_id: usize, new_node_id: usize, single_linkage_tree: &Vec<SLTNode<T>>,
-        condensed_tree: &mut Vec<CondensedNode<T>>, visited: &mut Vec<bool>, lambda_birth: T) {
+        &self,
+        node_id: usize,
+        new_node_id: usize,
+        single_linkage_tree: &Vec<SLTNode<T>>,
+        condensed_tree: &mut Vec<CondensedNode<T>>,
+        visited: &mut Vec<bool>,
+        lambda_birth: T
+    ) {
 
         for child_id in self.find_slt_children_breadth_first(&single_linkage_tree, node_id) {
             if self.is_individual_sample(&child_id) {
@@ -429,12 +447,16 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             stabilities.keys().map(|id| (id.clone(), false)).collect();
 
         for (cluster_id, stability) in stabilities.iter().rev() {
-            let immediate_children = self.get_immediate_child_clusters(*cluster_id, &condensed_tree);
+            let immediate_children =
+                self.get_immediate_child_clusters(*cluster_id, &condensed_tree);
+
             let combined_child_stability = immediate_children.iter()
-                .map(|node| stabilities.get(&node.node_id).unwrap_or(&RefCell::new(T::zero())).borrow().clone())
+                .map(|node| stabilities.get(&node.node_id)
+                    .unwrap_or(&RefCell::new(T::zero())).borrow().clone())
                 .fold(T::zero(), std::ops::Add::add);
 
-            if *stability.borrow() > combined_child_stability {
+            if *stability.borrow() > combined_child_stability
+                && !self.is_cluster_too_big(cluster_id, condensed_tree) {
                 *selected_clusters.get_mut(&cluster_id).unwrap() = true;
 
                 // If child clusters were already marked as winning clusters reverse
@@ -458,9 +480,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn calc_all_stabilities(&self, n_clusters: usize, condensed_tree: &Vec<CondensedNode<T>>)
         -> BTreeMap<usize, RefCell<T>> {
         (0..n_clusters).into_iter()
-            .filter(|n| { if !self.hyper_params.allow_single_cluster && *n == 0 { false } else { true } })
+            .filter(|n|
+                { if !self.hyper_params.allow_single_cluster && *n == 0 { false } else { true } })
             .map(|n| self.n_samples + n)
-            .map(|cluster_id| (cluster_id, RefCell::new(self.calc_stability(cluster_id, &condensed_tree))))
+            .map(|cluster_id|
+                (cluster_id, RefCell::new(self.calc_stability(cluster_id, &condensed_tree))))
             .collect()
     }
 
@@ -487,15 +511,31 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         cluster_id == self.n_samples
     }
 
-    fn get_immediate_child_clusters<'b>(&'b self, cluster_id: usize, condensed_tree: &'b Vec<CondensedNode<T>>)
-        -> Vec<&CondensedNode<T>> {
+    fn get_immediate_child_clusters<'b>(
+        &'b self,
+        cluster_id: usize,
+        condensed_tree: &'b Vec<CondensedNode<T>>
+    ) -> Vec<&CondensedNode<T>> {
         condensed_tree.iter()
             .filter(|node| node.parent_node_id == cluster_id)
             .filter(|node| self.is_cluster(&node.node_id))
             .collect()
     }
 
-    fn label_data(&self, winning_clusters: &Vec<usize>, condensed_tree: &Vec<CondensedNode<T>>) -> Vec<i32> {
+    fn is_cluster_too_big(&self, cluster_id: &usize, condensed_tree: &Vec<CondensedNode<T>>)
+        -> bool {
+        let cluster_size = condensed_tree.iter()
+            .find(|node| node.node_id == *cluster_id)
+            .unwrap() // The cluster has to be in the tree
+            .size;
+        cluster_size > self.hyper_params.max_cluster_size
+    }
+
+    fn label_data(
+        &self,
+        winning_clusters: &Vec<usize>,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> Vec<i32> {
         // Assume all data points are noise by default then label the ones in clusters
         let mut current_cluster_id = 0;
         let mut labels = vec![-1; self.n_samples];

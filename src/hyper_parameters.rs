@@ -2,6 +2,7 @@ use std::cmp;
 use crate::distance::DistanceMetric;
 
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
+const MAX_CLUSTER_SIZE_DEFAULT: usize = usize::MAX; // Set to a value that will never be triggered
 const ALLOW_SINGLE_CLUSTER_DEFAULT: bool = false;
 const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
 
@@ -10,6 +11,7 @@ const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
 /// instantiate the model with default hyper parameters.
 pub struct HdbscanHyperParams {
     pub(crate) min_cluster_size: usize,
+    pub(crate) max_cluster_size: usize,
     pub(crate) allow_single_cluster: bool,
     pub(crate) min_samples: usize,
     pub(crate) dist_metric: DistanceMetric,
@@ -18,6 +20,7 @@ pub struct HdbscanHyperParams {
 /// Builder object to set custom hyper parameters.
 pub struct HyperParamBuilder {
     min_cluster_size: Option<usize>,
+    max_cluster_size: Option<usize>,
     allow_single_cluster: Option<bool>,
     min_samples: Option<usize>,
     dist_metric: Option<DistanceMetric>,
@@ -36,6 +39,7 @@ impl HdbscanHyperParams {
     pub fn builder() -> HyperParamBuilder {
         HyperParamBuilder {
             min_cluster_size: None,
+            max_cluster_size: None,
             allow_single_cluster: None,
             min_samples: None,
             dist_metric: None,
@@ -58,6 +62,20 @@ impl HyperParamBuilder {
     /// * the hyper parameter configuration builder
     pub fn min_cluster_size(mut self, min_cluster_size: usize) -> HyperParamBuilder {
         self.min_cluster_size = Some(min_cluster_size);
+        self
+    }
+
+    /// Sets the maximum cluster size - the maximum number of samples for a group of
+    /// data points to be considered a cluster. If a grouping of data points has more
+    /// members than this. By default, this value is not considered in clustering.
+    ///
+    /// # Parameters
+    /// * max_cluster_size - the maximum cluster size
+    ///
+    /// # Returns
+    /// * the hyper parameter configuration builder
+    pub fn max_cluster_size(mut self, max_cluster_size: usize) -> HyperParamBuilder {
+        self.max_cluster_size = Some(max_cluster_size);
         self
     }
 
@@ -103,8 +121,8 @@ impl HyperParamBuilder {
         self
     }
 
-    /// Finishes the building of the hyper parameter configuration. A call to this method is required to 
-    /// exist the builder pattern and complete the construction of the hyper parameters.
+    /// Finishes the building of the hyper parameter configuration. A call to this method is
+    /// required to exist the builder pattern and complete the construction of the hyper parameters.
     ///
     /// # Returns
     /// * The completed HDBSCAN hyper parameter configuration.
@@ -113,12 +131,17 @@ impl HyperParamBuilder {
         // Must be at least 2 data points to make a cluster
         min_cluster_size = cmp::max(min_cluster_size, 2);
 
+        let mut max_cluster_size = self.max_cluster_size.unwrap_or(MAX_CLUSTER_SIZE_DEFAULT);
+        // Must be at least 2 data points to make a cluster
+        max_cluster_size = cmp::max(max_cluster_size, 2);
+
         let mut min_samples = self.min_samples.unwrap_or(min_cluster_size);
         // Can't be less than 1
         min_samples = cmp::max(min_samples, 1);
 
         HdbscanHyperParams {
             min_cluster_size,
+            max_cluster_size,
             allow_single_cluster: self.allow_single_cluster.unwrap_or(ALLOW_SINGLE_CLUSTER_DEFAULT),
             min_samples,
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),

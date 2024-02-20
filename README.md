@@ -16,6 +16,19 @@ This implementation owes a debt to the Python scikit-learn implementation of thi
 algorithm would not have been possible. The "How HDBSCAN works" article below is invaluable in understanding this
 algorithm better.
 
+# Current state
+Several variations of HDBSCAN are possible. Notably, a nearest neighbours algorithm is used to calculate the distance 
+of a point to its Kth neighbour. This is a crucial input to calculate the density of points in the vector space. 
+Currently, this implementation only supports the K-d Tree nearest neighbours algorithm to do this. While K-d Tree is 
+the best candidate for most uses cases, in the future I hope to support other nearest neighbour algorithms to make this
+implementation more flexible (as per the scikit-learn Python implementation).
+
+Further, this implementation uses Prim's algorithm to find the minimum spanning tree of the points. Prim's algorithm 
+will perform the best for dense vectors and therefore most uses cases. However, Kruskal's algorithm is another
+possibility for this, that would perform better on sparse vectors.
+
+I also hope to be able to offer more hyper parameters to tune the algorithm.
+
 # Usage
 ### With default hyper parameters
 ```rust
