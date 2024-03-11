@@ -664,4 +664,24 @@ mod tests {
         assert!(matches!(result, Err(HdbscanError::WrongDimension(..))));
     }
 
+    #[test]
+    fn calc_centers() {
+        let data: Vec<Vec<f32>> = vec![
+            vec![1.5, 2.2],
+            vec![1.0, 1.1],
+            vec![1.2, 1.4],
+            vec![0.8, 1.0],
+            vec![1.1, 1.0],
+            vec![3.7, 4.0],
+            vec![3.9, 3.9],
+            vec![3.6, 4.1],
+            vec![3.8, 3.9],
+            vec![4.0, 4.1],
+            vec![10.0, 10.0],
+        ];
+        let clusterer = Hdbscan::default(&data);
+        let _ = clusterer.cluster().unwrap();
+        let centroids = clusterer.calc_centers(Center::Centroid).unwrap();
+        assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+    }
 }
