@@ -50,6 +50,7 @@ use num_traits::Float;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
 
+pub use crate::centers::Center;
 pub use crate::distance::DistanceMetric;
 pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
 pub use crate::error::HdbscanError;
@@ -59,6 +60,7 @@ mod data_wrappers;
 mod distance;
 mod error;
 mod union_find;
+mod centers;
 
 /// The HDBSCAN clustering algorithm in Rust. Generic over floating point numeric types.
 pub struct Hdbscan<'a, T> {
@@ -66,6 +68,7 @@ pub struct Hdbscan<'a, T> {
     n_samples: usize,
     n_dims: usize,
     hyper_params: HdbscanHyperParams,
+    labels: RefCell<Option<Vec<i32>>>,
 }
 
 impl<'a, T: Float> Hdbscan<'a, T> {
@@ -106,7 +109,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     pub fn new(data: &'a Vec<Vec<T>>, hyper_params: HdbscanHyperParams) -> Self {
         let n_samples = data.len();
         let n_dims = if data.is_empty() {0} else { data[0].len() };
-        Hdbscan { data, n_samples, n_dims , hyper_params }
+        Hdbscan { data, n_samples, n_dims , hyper_params, labels: RefCell::new(None) }
     }
 
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
@@ -180,6 +183,19 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let winning_clusters = self.extract_winning_clusters(&condensed_tree);
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
         Ok(labelled_data)
+    }
+
+    pub fn calc_centers(&self, center: Center) -> Result<Vec<Vec<T>>, HdbscanError> {
+        if self.labels.borrow().is_none() {
+            panic!(
+                "Clustering must be completed before cluster centers can be calculated. \
+                Call Hdbscan::cluster to perform clustering.");
+        }
+        let bound_labels = self.labels.borrow();
+        let labels = bound_labels.as_ref().unwrap();
+        match center {
+            Center::Centroid => Ok(center.calc_centers(self.data, labels))
+        }
     }
 
     fn validate_input_data(&self) -> Result<(), HdbscanError> {
@@ -547,10 +563,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 current_cluster_id += 1;
             }
         }
+        self.labels.replace(Some(labels.clone()));
         labels
     }
 
-    fn find_child_samples(&self, root: usize, condensed_tree: &Vec<CondensedNode<T>>) -> Vec<usize> {
+    fn find_child_samples(&self, root: usize, condensed_tree: &Vec<CondensedNode<T>>)
+        -> Vec<usize> {
         let mut process_queue = VecDeque::from([root]);
         let mut child_nodes: Vec<usize> = Vec::new();
 
@@ -561,7 +579,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                     if self.is_individual_sample(&node.node_id) {
                         child_nodes.push(node.node_id);
                     } else {
-                        // Else it is a cluster not an individual data point so need to find its children
+                        // Else it is a cluster not an individual data point
+                        // so need to find its children
                         process_queue.push_back(node.node_id);
                     }
                 }
