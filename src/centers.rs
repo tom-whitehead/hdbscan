@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 use num_traits::Float;
 
+/// Possible methodologies for calculating the center of clusters
 pub enum Center {
+    /// The elementwise mean of all data points in a cluster.
+    /// The output is not guaranteed to be an observed data point.
     Centroid,
 }
 
@@ -25,11 +28,12 @@ impl Center {
         let n_dims = data[0].len();
         let n_clusters = labels
             .iter()
+            .filter(|&&label| label != -1)
             .collect::<HashSet<_>>()
-            .len() - 1;  // Subtract one to ignore noise points
+            .len();
 
         let mut centroids = Vec::with_capacity(n_clusters);
-        for cluster_id in 0..=n_clusters as i32 {
+        for cluster_id in 0..n_clusters as i32 {
             let mut count = T::zero();
             let mut element_wise_mean = vec![T::zero(); n_dims];
             for n in 0..data.len() {
