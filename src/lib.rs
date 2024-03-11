@@ -10,7 +10,7 @@
 //!     static density threshold. The winning clusters are those that persist the longest at all
 //!     densities. This is also crucial for modelling real world data; and
 //!  3. It makes no assumptions about the number of clusters there have to be, unlike KMeans
-//!     clustering. The algorithm will select just select the clusters that are the most persistent
+//!     clustering. The algorithm will just select the clusters that are the most persistent
 //!     at all densities.
 //!
 //! This implementation owes a debt to the Python scikit-learn implementation of this algorithm,
@@ -68,7 +68,6 @@ pub struct Hdbscan<'a, T> {
     n_samples: usize,
     n_dims: usize,
     hyper_params: HdbscanHyperParams,
-    labels: RefCell<Option<Vec<i32>>>,
 }
 
 impl<'a, T: Float> Hdbscan<'a, T> {
@@ -109,7 +108,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     pub fn new(data: &'a Vec<Vec<T>>, hyper_params: HdbscanHyperParams) -> Self {
         let n_samples = data.len();
         let n_dims = if data.is_empty() {0} else { data[0].len() };
-        Hdbscan { data, n_samples, n_dims , hyper_params, labels: RefCell::new(None) }
+        Hdbscan { data, n_samples, n_dims , hyper_params }
     }
 
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
@@ -185,17 +184,42 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         Ok(labelled_data)
     }
 
-    pub fn calc_centers(&self, center: Center) -> Result<Vec<Vec<T>>, HdbscanError> {
-        if self.labels.borrow().is_none() {
-            panic!(
-                "Clustering must be completed before cluster centers can be calculated. \
-                Call Hdbscan::cluster to perform clustering.");
-        }
-        let bound_labels = self.labels.borrow();
-        let labels = bound_labels.as_ref().unwrap();
-        match center {
-            Center::Centroid => Ok(center.calc_centers(self.data, labels))
-        }
+    /// Calculates the centers of the clusters just calculate.
+    ///
+    /// # Parameters
+    /// * `center` - the type of center to calculate. Currently only centroid (the element wise mean
+    ///              of all the data points in a cluster) is supported.
+    /// * `labels` - a reference to the labels calculated by a call to `Hdbscan::cluster`.
+    ///
+    /// # Returns
+    /// * A vector of the cluster centers, of shape num clusters by num dimensions/features.
+    ///
+    /// # Examples
+    /// ```
+    ///use hdbscan::{Center, Hdbscan};
+    ///
+    /// let data: Vec<Vec<f32>> = vec![
+    ///    vec![1.5, 2.2],
+    ///    vec![1.0, 1.1],
+    ///    vec![1.2, 1.4],
+    ///    vec![0.8, 1.0],
+    ///    vec![1.1, 1.0],
+    ///    vec![3.7, 4.0],
+    ///    vec![3.9, 3.9],
+    ///    vec![3.6, 4.1],
+    ///    vec![3.8, 3.9],
+    ///    vec![4.0, 4.1],
+    ///    vec![10.0, 10.0],
+    ///];
+    ///let clusterer = Hdbscan::default(&data);
+    ///let labels = clusterer.cluster().unwrap();
+    ///let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+    ///assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+    /// ```
+    pub fn calc_centers(
+        &self, center: Center, labels: &Vec<i32>) -> Result<Vec<Vec<T>>, HdbscanError> {
+        assert_eq!(labels.len(), self.data.len());
+        Ok(center.calc_centers(self.data, labels))
     }
 
     fn validate_input_data(&self) -> Result<(), HdbscanError> {
@@ -563,7 +587,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 current_cluster_id += 1;
             }
         }
-        self.labels.replace(Some(labels.clone()));
         labels
     }
 
@@ -680,8 +703,8 @@ mod tests {
             vec![10.0, 10.0],
         ];
         let clusterer = Hdbscan::default(&data);
-        let _ = clusterer.cluster().unwrap();
-        let centroids = clusterer.calc_centers(Center::Centroid).unwrap();
+        let labels = clusterer.cluster().unwrap();
+        let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
         assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
     }
 }

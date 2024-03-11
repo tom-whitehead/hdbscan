@@ -1,7 +1,10 @@
 use std::collections::HashSet;
 use num_traits::Float;
 
+/// Possible methodologies for calculating the center of clusters
 pub enum Center {
+    /// The elementwise mean of all data points in a cluster.
+    /// The output is not guaranteed to be an observed data point.
     Centroid,
 }
 
