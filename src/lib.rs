@@ -328,7 +328,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn make_single_linkage_tree(&self, min_spanning_tree: &Vec<MSTEdge<T>>) -> Vec<SLTNode<T>> {
-        let mut single_linkage_tree: Vec<SLTNode<T>> = Vec::new();
+        let mut single_linkage_tree: Vec<SLTNode<T>> = Vec::with_capacity(self.n_samples - 1);
 
         let mut union_find = UnionFind::new(self.n_samples);
 
@@ -582,7 +582,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
         for node in condensed_tree {
             if winning_clusters.contains(&node.node_id) {
-                let child_samples = self.find_child_samples(node.node_id, &condensed_tree);
+                let child_samples = self.find_child_samples(&node, &condensed_tree);
                 child_samples.into_iter().for_each(|id| labels[id] = current_cluster_id);
                 current_cluster_id += 1;
             }
@@ -590,10 +590,10 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         labels
     }
 
-    fn find_child_samples(&self, root: usize, condensed_tree: &Vec<CondensedNode<T>>)
+    fn find_child_samples(&self, root: &CondensedNode<T>, condensed_tree: &Vec<CondensedNode<T>>)
         -> Vec<usize> {
-        let mut process_queue = VecDeque::from([root]);
-        let mut child_nodes: Vec<usize> = Vec::new();
+        let mut process_queue = VecDeque::from([root.node_id]);
+        let mut child_nodes: Vec<usize> = Vec::with_capacity(root.size);
 
         while !process_queue.is_empty() {
             let current_node_num = process_queue.pop_front().unwrap();
@@ -619,19 +619,7 @@ mod tests {
 
     #[test]
     fn cluster() {
-        let data: Vec<Vec<f32>> = vec![
-            vec![1.5, 2.2],
-            vec![1.0, 1.1],
-            vec![1.2, 1.4],
-            vec![0.8, 1.0],
-            vec![1.1, 1.0],
-            vec![3.7, 4.0],
-            vec![3.9, 3.9],
-            vec![3.6, 4.1],
-            vec![3.8, 3.9],
-            vec![4.0, 4.1],
-            vec![10.0, 10.0],
-        ];
+        let data = cluster_test_data();
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster().unwrap();
         assert_eq!(result, vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, -1]);
@@ -689,7 +677,15 @@ mod tests {
 
     #[test]
     fn calc_centers() {
-        let data: Vec<Vec<f32>> = vec![
+        let data = cluster_test_data();
+        let clusterer = Hdbscan::default(&data);
+        let labels = clusterer.cluster().unwrap();
+        let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+        assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+    }
+
+    fn cluster_test_data() -> Vec<Vec<f32>> {
+        vec![
             vec![1.5, 2.2],
             vec![1.0, 1.1],
             vec![1.2, 1.4],
@@ -701,10 +697,6 @@ mod tests {
             vec![3.8, 3.9],
             vec![4.0, 4.1],
             vec![10.0, 10.0],
-        ];
-        let clusterer = Hdbscan::default(&data);
-        let labels = clusterer.cluster().unwrap();
-        let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
-        assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+        ]
     }
 }
