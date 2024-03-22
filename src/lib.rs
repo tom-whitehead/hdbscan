@@ -390,22 +390,22 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
             } else if !is_left_a_cluster && !is_right_a_cluster {
                 let new_node_id = new_node_ids[node_id];
-                self.process_individual_children(
+                self.add_children_to_tree(
                     left_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree,
                     &mut visited, lambda_birth);
-                self.process_individual_children(
+                self.add_children_to_tree(
                     right_child_id, new_node_id, &single_linkage_tree, &mut condensed_tree,
                     &mut visited, lambda_birth);
 
             } else if !is_left_a_cluster {
                 new_node_ids[right_child_id] = new_node_ids[node_id];
-                self.process_individual_children(
+                self.add_children_to_tree(
                     left_child_id, new_node_ids[node_id], &single_linkage_tree,
                     &mut condensed_tree, &mut visited, lambda_birth);
 
             } else {
                 new_node_ids[left_child_id] = new_node_ids[node_id];
-                self.process_individual_children(
+                self.add_children_to_tree(
                     right_child_id, new_node_ids[node_id], &single_linkage_tree,
                     &mut condensed_tree, &mut visited, lambda_birth);
             }
@@ -418,17 +418,21 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         single_linkage_tree: &Vec<SLTNode<T>>,
         root: usize
     ) -> Vec<usize> {
+
         let mut process_queue = VecDeque::from([root]);
         let mut child_nodes: Vec<usize> = Vec::new();
 
         while !process_queue.is_empty() {
-            let mut current_node_num = process_queue.pop_front().unwrap();
-            child_nodes.push(current_node_num);
-            if self.is_individual_sample(&current_node_num) {
+            let mut current_node_id = match process_queue.pop_front() {
+                Some(node_id) => node_id,
+                None => break,
+            };
+            child_nodes.push(current_node_id);
+            if self.is_individual_sample(&current_node_id) {
                 continue;
             }
-            current_node_num -= self.n_samples;
-            let current_node = &single_linkage_tree[current_node_num];
+            current_node_id -= self.n_samples;
+            let current_node = &single_linkage_tree[current_node_id];
             process_queue.push_back(current_node.left_child);
             process_queue.push_back(current_node.right_child);
         }
@@ -449,7 +453,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         if dist > T::zero() { T::one() / dist } else { T::infinity() }
     }
 
-    fn extract_cluster_size(&self, node_id: usize, single_linkage_tree: &Vec<SLTNode<T>>) -> usize {
+    fn extract_cluster_size(
+        &self, node_id: usize, single_linkage_tree: &Vec<SLTNode<T>>) -> usize {
+
         if self.is_individual_sample(&node_id) {
             1
         } else {
@@ -461,7 +467,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         cluster_size >= self.hyper_params.min_cluster_size
     }
 
-    fn process_individual_children(
+    fn add_children_to_tree(
         &self,
         node_id: usize,
         new_node_id: usize,
@@ -487,12 +493,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             stabilities.keys().map(|id| (id.clone(), false)).collect();
 
         for (cluster_id, stability) in stabilities.iter().rev() {
-            let immediate_children =
-                self.get_immediate_child_clusters(*cluster_id, &condensed_tree);
-
-            let combined_child_stability = immediate_children.iter()
-                .map(|node| stabilities.get(&node.node_id)
-                    .unwrap_or(&RefCell::new(T::zero())).borrow().clone())
+            let combined_child_stability =
+                self.get_immediate_child_clusters(*cluster_id, &condensed_tree)
+                    .iter()
+                    .map(|node| stabilities.get(&node.node_id)
+                        .unwrap_or(&RefCell::new(T::zero())).borrow().clone())
                 .fold(T::zero(), std::ops::Add::add);
 
             if *stability.borrow() > combined_child_stability
@@ -500,10 +505,10 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 *selected_clusters.get_mut(&cluster_id).unwrap() = true;
 
                 // If child clusters were already marked as winning clusters reverse
-                immediate_children.iter().for_each(|node| {
-                    let is_child_selected = selected_clusters.get(&node.node_id);
+                self.find_child_clusters(&cluster_id, &condensed_tree).iter().for_each(|node_id| {
+                    let is_child_selected = selected_clusters.get(node_id);
                     if let Some(true) = is_child_selected {
-                        *selected_clusters.get_mut(&node.node_id).unwrap() = false;
+                        *selected_clusters.get_mut(node_id).unwrap() = false;
                     }
                 });
             } else {
@@ -517,11 +522,15 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect()
     }
 
-    fn calc_all_stabilities(&self, n_clusters: usize, condensed_tree: &Vec<CondensedNode<T>>)
-        -> BTreeMap<usize, RefCell<T>> {
+    fn calc_all_stabilities(
+        &self,
+        n_clusters: usize,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> BTreeMap<usize, RefCell<T>> {
+
         (0..n_clusters).into_iter()
-            .filter(|n|
-                { if !self.hyper_params.allow_single_cluster && *n == 0 { false } else { true } })
+            .filter(|&n|
+                { if !self.hyper_params.allow_single_cluster && n == 0 { false } else { true } })
             .map(|n| self.n_samples + n)
             .map(|cluster_id|
                 (cluster_id, RefCell::new(self.calc_stability(cluster_id, &condensed_tree))))
@@ -536,19 +545,21 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .fold(T::zero(), std::ops::Add::add)
     }
 
-    fn extract_lambda_birth(&self, cluster_id: usize, condensed_tree: &Vec<CondensedNode<T>>) -> T {
-        if self.is_top_cluster(cluster_id) {
+    fn extract_lambda_birth(
+        &self, cluster_id: usize, condensed_tree: &Vec<CondensedNode<T>>) -> T {
+
+        if self.is_top_cluster(&cluster_id) {
             T::zero()
         } else {
             condensed_tree.iter()
                 .find(|node| node.node_id == cluster_id)
-                .unwrap()
-                .lambda_birth
+                .map(|node| node.lambda_birth)
+                .unwrap_or(T::zero())
         }
     }
 
-    fn is_top_cluster(&self, cluster_id: usize) -> bool {
-        cluster_id == self.n_samples
+    fn is_top_cluster(&self, cluster_id: &usize) -> bool {
+        cluster_id == &self.n_samples
     }
 
     fn get_immediate_child_clusters<'b>(
@@ -562,13 +573,62 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect()
     }
 
-    fn is_cluster_too_big(&self, cluster_id: &usize, condensed_tree: &Vec<CondensedNode<T>>)
-        -> bool {
-        let cluster_size = condensed_tree.iter()
-            .find(|node| node.node_id == *cluster_id)
-            .unwrap() // The cluster has to be in the tree
-            .size;
-        cluster_size > self.hyper_params.max_cluster_size
+    fn is_cluster_too_big(
+        &self,
+        cluster_id: &usize,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> bool {
+        self.get_cluster_size(cluster_id, &condensed_tree) > self.hyper_params.max_cluster_size
+    }
+
+    fn get_cluster_size(
+        &self,
+        cluster_id: &usize,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> usize {
+
+        if self.hyper_params.allow_single_cluster && self.is_top_cluster(cluster_id) {
+            condensed_tree.iter()
+                .filter(|node| self.is_cluster(&node.node_id))
+                .filter(|node| &node.parent_node_id == cluster_id)
+                .map(|node| node.size)
+                .sum()
+
+        } else {
+            // All other clusters are in the tree with sizes
+            condensed_tree.iter()
+                .find(|node| &node.node_id == cluster_id)
+                .map(|node| node.size)
+                .unwrap_or(1usize)  // The cluster has to be in the tree
+        }
+    }
+
+    fn find_child_clusters(
+        &self,
+        root_node_id: &usize,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> Vec<usize> {
+
+        let mut process_queue = VecDeque::from([root_node_id]);
+        let mut child_clusters: Vec<usize> = Vec::new();
+
+        while !process_queue.is_empty() {
+            let current_node_id = match process_queue.pop_front() {
+                Some(node_id) => node_id,
+                None => break,
+            };
+
+            for node in condensed_tree {
+                if self.is_individual_sample(&node.node_id) {
+                    continue;
+                }
+                if node.parent_node_id == *current_node_id {
+                    child_clusters.push(node.node_id);
+                    process_queue.push_back(&node.node_id);
+                }
+            }
+        }
+        child_clusters
     }
 
     fn label_data(
@@ -576,31 +636,44 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         winning_clusters: &Vec<usize>,
         condensed_tree: &Vec<CondensedNode<T>>
     ) -> Vec<i32> {
+
         // Assume all data points are noise by default then label the ones in clusters
         let mut current_cluster_id = 0;
         let mut labels = vec![-1; self.n_samples];
 
-        for node in condensed_tree {
-            if winning_clusters.contains(&node.node_id) {
-                let child_samples = self.find_child_samples(&node, &condensed_tree);
-                child_samples.into_iter().for_each(|id| labels[id] = current_cluster_id);
-                current_cluster_id += 1;
-            }
+        for cluster_id in winning_clusters {
+            let node_size = self.get_cluster_size(cluster_id, &condensed_tree);
+            self.find_child_samples(*cluster_id, node_size, &condensed_tree).into_iter()
+                .for_each(|id| labels[id] = current_cluster_id);
+            current_cluster_id += 1;
         }
         labels
     }
 
-    fn find_child_samples(&self, root: &CondensedNode<T>, condensed_tree: &Vec<CondensedNode<T>>)
-        -> Vec<usize> {
-        let mut process_queue = VecDeque::from([root.node_id]);
-        let mut child_nodes: Vec<usize> = Vec::with_capacity(root.size);
+    fn find_child_samples(
+        &self,
+        root_node_id: usize,
+        node_size: usize,
+        condensed_tree: &Vec<CondensedNode<T>>
+    ) -> Vec<usize> {
+
+        let mut process_queue = VecDeque::from([root_node_id]);
+        let mut child_nodes: Vec<usize> = Vec::with_capacity(node_size);
 
         while !process_queue.is_empty() {
-            let current_node_num = process_queue.pop_front().unwrap();
+            let current_node_id = match process_queue.pop_front() {
+                Some(node_id) => node_id,
+                None => break,
+            };
             for node in condensed_tree {
-                if node.parent_node_id == current_node_num {
+                if node.parent_node_id == current_node_id {
                     if self.is_individual_sample(&node.node_id) {
+                        if self.hyper_params.allow_single_cluster
+                            && self.is_top_cluster(&current_node_id) {
+                            continue;
+                        }
                         child_nodes.push(node.node_id);
+
                     } else {
                         // Else it is a cluster not an individual data point
                         // so need to find its children
