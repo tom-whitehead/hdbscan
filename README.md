@@ -89,10 +89,10 @@ let data: Vec<Vec<f32>> = vec![
         vec![4.0, 4.1],
         vec![10.0, 10.0],
     ];
-    let clusterer = Hdbscan::default(&data);
-    let labels = clusterer.cluster().unwrap();
-    let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
-    assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+let clusterer = Hdbscan::default(&data);
+let labels = clusterer.cluster().unwrap();
+let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
 ```
 
 # License
