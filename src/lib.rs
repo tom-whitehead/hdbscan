@@ -45,6 +45,7 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::time::Instant;
 use kdtree::KdTree;
 use num_traits::Float;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
@@ -270,40 +271,35 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         // TODO: Move out to a dedicated object and inject to enable use of other mst algorithms
         let mut in_tree = vec![false; self.n_samples];
         let mut distances = vec![T::infinity(); self.n_samples];
-        let mut parents = vec![0; self.n_samples];
-
         distances[0] = T::zero();
 
-        for _ in 1..self.n_samples {
-            let left_node = self.select_min_node(&distances, &in_tree);
-            in_tree[left_node] = true;
+        let mut mst = Vec::with_capacity(self.n_samples);
 
-            for right_node in 1..self.n_samples {
-                if in_tree[right_node] {
+        let mut left_node_id = 0;
+        let mut right_node_id = 0;
+
+        for _ in 1..self.n_samples {
+            in_tree[left_node_id] = true;
+            let mut current_min_dist = T::infinity();
+
+            for i in 0..self.n_samples {
+                if in_tree[i] {
                     continue;
                 }
-                let mrd = self.calc_mutual_reachability_dist(left_node, right_node, core_distances);
-                if mrd < distances[right_node] {
-                    distances[right_node] = mrd;
-                    parents[right_node] = left_node;
+                let mrd = self.calc_mutual_reachability_dist(left_node_id, i, core_distances);
+                if mrd < distances[i] {
+                    distances[i] = mrd;
+                }
+                if distances[i] < current_min_dist {
+                    right_node_id = i;
+                    current_min_dist = distances[i];
                 }
             }
+            mst.push(MSTEdge { left_node_id, right_node_id, distance: current_min_dist });
+            left_node_id = right_node_id;
         }
-        let mut mst = self.collect_mst(&parents, &distances);
         self.sort_mst_by_dist(&mut mst);
         mst
-    }
-
-    fn select_min_node(&self, distances: &Vec<T>, in_tree: &Vec<bool>) -> usize {
-        let mut min_dist = T::infinity();
-        let mut node = 0;
-        for (i, (dist, is_in_tree)) in distances.iter().zip(in_tree).enumerate() {
-            if !is_in_tree && dist < &min_dist {
-                min_dist = *dist;
-                node = i;
-            }
-        }
-        node
     }
 
     fn calc_mutual_reachability_dist(&self, a: usize, b: usize, core_distances: &Vec<T>) -> T {
@@ -312,15 +308,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let dist_a_b = self.hyper_params.dist_metric.calc_dist(&self.data[a], &self.data[b]);
 
         core_dist_a.max(core_dist_b).max(dist_a_b)
-    }
-
-    fn collect_mst(&self, parents: &Vec<usize>, distances: &Vec<T>) -> Vec<MSTEdge<T>> {
-        parents.iter().zip(distances).enumerate()
-            .skip(1)
-            .map(|(right, (left, dist))| {
-                MSTEdge { left_node_id: *left, right_node_id: right, distance: dist.clone() }
-            })
-            .collect()
     }
 
     fn sort_mst_by_dist(&self, min_spanning_tree: &mut Vec<MSTEdge<T>>) {
@@ -695,7 +682,7 @@ mod tests {
         let data = cluster_test_data();
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster().unwrap();
-        assert_eq!(result, vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, -1]);
+        assert_eq!(result, vec![1, 1, 1, 1, 1, 0, 0, 0, 0, 0, -1]);
     }
 
     #[test]
@@ -754,7 +741,7 @@ mod tests {
         let clusterer = Hdbscan::default(&data);
         let labels = clusterer.cluster().unwrap();
         let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
-        assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+        assert_eq!(centroids, vec![vec![3.8, 4.0], vec![1.12, 1.34]])
     }
 
     fn cluster_test_data() -> Vec<Vec<f32>> {

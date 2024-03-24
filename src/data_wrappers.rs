@@ -1,3 +1,4 @@
+#[derive(Clone, Debug)]
 pub(crate) struct MSTEdge<T> {
     pub(crate) left_node_id: usize,
     pub(crate) right_node_id: usize,
