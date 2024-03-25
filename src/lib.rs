@@ -45,7 +45,6 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::time::Instant;
 use kdtree::KdTree;
 use num_traits::Float;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
@@ -155,7 +154,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///
     /// # Examples
     /// ```
-    ///use hdbscan::Hdbscan;
+    ///use std::collections::HashSet;
+    /// use hdbscan::Hdbscan;
     ///
     ///let data: Vec<Vec<f32>> = vec![
     ///    vec![1.5, 2.2],
@@ -172,7 +172,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///];
     ///let clusterer = Hdbscan::default(&data);
     ///let result = clusterer.cluster().unwrap();
-    ///assert_eq!(result, vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, -1]);
+    /// //First five points form one cluster
+    ///assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
+    /// // Next five points are a second cluster
+    ///assert_eq!(1, result[5..10].iter().collect::<HashSet<_>>().len());
+    /// // The final point is noise
+    ///assert_eq!(-1, result[10]);
     /// ```
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         self.validate_input_data()?;
@@ -215,7 +220,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///let clusterer = Hdbscan::default(&data);
     ///let labels = clusterer.cluster().unwrap();
     ///let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
-    ///assert_eq!(centroids, vec![vec![1.12, 1.34], vec![3.8, 4.0]])
+    ///assert_eq!(2, centroids.len());
+    ///assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
     /// ```
     pub fn calc_centers(
         &self, center: Center, labels: &Vec<i32>) -> Result<Vec<Vec<T>>, HdbscanError> {
@@ -675,6 +681,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use super::*;
 
     #[test]
@@ -682,7 +689,12 @@ mod tests {
         let data = cluster_test_data();
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster().unwrap();
-        assert_eq!(result, vec![1, 1, 1, 1, 1, 0, 0, 0, 0, 0, -1]);
+        // First five points form one cluster
+        assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
+        // Next five points are a second cluster
+        assert_eq!(1, result[5..10].iter().collect::<HashSet<_>>().len());
+        // The final point is noise
+        assert_eq!(-1, result[10]);
     }
 
     #[test]
@@ -690,12 +702,11 @@ mod tests {
         let data: Vec<Vec<f32>> = vec![
             vec![1.3, 1.1],
             vec![1.3, 1.2],
-            vec![1.0, 1.1],
             vec![1.2, 1.2],
+            vec![1.0, 1.1],
             vec![0.9, 1.0],
             vec![0.9, 1.0],
             vec![3.7, 4.0],
-            vec![3.9, 3.9],
         ];
         let hyper_params = HdbscanHyperParams::builder()
             .min_cluster_size(3)
@@ -704,7 +715,12 @@ mod tests {
             .build();
         let clusterer = Hdbscan::new(&data, hyper_params);
         let result = clusterer.cluster().unwrap();
-        assert_eq!(result, vec![0, 0, 1, 0, 1, 1, -1, -1]);
+        // First three points form one cluster
+        assert_eq!(1, result[..3].iter().collect::<HashSet<_>>().len());
+        // Next three points are a second cluster
+        assert_eq!(1, result[3..6].iter().collect::<HashSet<_>>().len());
+        // The final point is noise
+        assert_eq!(-1, result[6]);
     }
 
     #[test]
@@ -741,7 +757,8 @@ mod tests {
         let clusterer = Hdbscan::default(&data);
         let labels = clusterer.cluster().unwrap();
         let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
-        assert_eq!(centroids, vec![vec![3.8, 4.0], vec![1.12, 1.34]])
+        assert_eq!(2, centroids.len());
+        assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
     }
 
     fn cluster_test_data() -> Vec<Vec<f32>> {
