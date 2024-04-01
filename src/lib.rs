@@ -155,7 +155,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// # Examples
     /// ```
     ///use std::collections::HashSet;
-    /// use hdbscan::Hdbscan;
+    ///use hdbscan::Hdbscan;
     ///
     ///let data: Vec<Vec<f32>> = vec![
     ///    vec![1.5, 2.2],
@@ -171,13 +171,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    vec![10.0, 10.0],
     ///];
     ///let clusterer = Hdbscan::default(&data);
-    ///let result = clusterer.cluster().unwrap();
+    ///let labels = clusterer.cluster().unwrap();
     /// //First five points form one cluster
-    ///assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
+    ///assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
     /// // Next five points are a second cluster
-    ///assert_eq!(1, result[5..10].iter().collect::<HashSet<_>>().len());
+    ///assert_eq!(1, labels[5..10].iter().collect::<HashSet<_>>().len());
     /// // The final point is noise
-    ///assert_eq!(-1, result[10]);
+    ///assert_eq!(-1, labels[10]);
     /// ```
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         self.validate_input_data()?;
