@@ -1,10 +1,16 @@
-use std::cmp;
 use crate::distance::DistanceMetric;
 
+// Defaults for parameters
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
 const MAX_CLUSTER_SIZE_DEFAULT: usize = usize::MAX; // Set to a value that will never be triggered
 const ALLOW_SINGLE_CLUSTER_DEFAULT: bool = false;
 const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
+
+// Valid minimums/left bounds of parameters
+const MIN_CLUSTER_SIZE_MINIMUM: usize = 2;
+const MAX_CLUSTER_SIZE_MINIMUM: usize = 2;
+const MIN_SAMPLES_MINIMUM: usize = 1;
+
 
 /// A wrapper around the various hyper parameters used in HDBSCAN clustering.
 /// Only use if you want to tune hyper parameters. Otherwise use `Hdbscan::default()` to 
@@ -61,7 +67,9 @@ impl HyperParamBuilder {
     /// # Returns
     /// * the hyper parameter configuration builder
     pub fn min_cluster_size(mut self, min_cluster_size: usize) -> HyperParamBuilder {
-        self.min_cluster_size = Some(min_cluster_size);
+        let valid_min_cluster_size = HyperParamBuilder::validate_input_left_bound(
+            min_cluster_size, MIN_CLUSTER_SIZE_MINIMUM, "min_cluster_size");
+        self.min_cluster_size = Some(valid_min_cluster_size);
         self
     }
 
@@ -75,7 +83,9 @@ impl HyperParamBuilder {
     /// # Returns
     /// * the hyper parameter configuration builder
     pub fn max_cluster_size(mut self, max_cluster_size: usize) -> HyperParamBuilder {
-        self.max_cluster_size = Some(max_cluster_size);
+        let valid_max_cluster_size = HyperParamBuilder::validate_input_left_bound(
+            max_cluster_size, MAX_CLUSTER_SIZE_MINIMUM, "max_cluster_size");
+        self.max_cluster_size = Some(valid_max_cluster_size);
         self
     }
 
@@ -93,7 +103,6 @@ impl HyperParamBuilder {
         self
     }
 
-
     /// Sets min samples. HDBSCAN calculates the core distances between points as a first step
     /// in clustering. The core distance is the distance to the Kth neighbour using a nearest
     /// neighbours algorithm, where k = min_samples. Defaults to min_cluster_size.
@@ -104,7 +113,9 @@ impl HyperParamBuilder {
     /// # Returns
     /// * the hyper parameter configuration builder
     pub fn min_samples(mut self, min_samples: usize) -> HyperParamBuilder {
-        self.min_samples = Some(min_samples);
+        let valid_min_samples = HyperParamBuilder::validate_input_left_bound(
+            min_samples, MIN_SAMPLES_MINIMUM, "min_samples");
+        self.min_samples = Some(valid_min_samples);
         self
     }
 
@@ -120,31 +131,31 @@ impl HyperParamBuilder {
         self.dist_metric = Some(dist_metric);
         self
     }
-
+    
     /// Finishes the building of the hyper parameter configuration. A call to this method is
     /// required to exist the builder pattern and complete the construction of the hyper parameters.
     ///
     /// # Returns
     /// * The completed HDBSCAN hyper parameter configuration.
     pub fn build(self) -> HdbscanHyperParams {
-        let mut min_cluster_size = self.min_cluster_size.unwrap_or(MIN_CLUSTER_SIZE_DEFAULT);
-        // Must be at least 2 data points to make a cluster
-        min_cluster_size = cmp::max(min_cluster_size, 2);
-
-        let mut max_cluster_size = self.max_cluster_size.unwrap_or(MAX_CLUSTER_SIZE_DEFAULT);
-        // Must be at least 2 data points to make a cluster
-        max_cluster_size = cmp::max(max_cluster_size, 2);
-
-        let mut min_samples = self.min_samples.unwrap_or(min_cluster_size);
-        // Can't be less than 1
-        min_samples = cmp::max(min_samples, 1);
-
+        let min_cluster_size = self.min_cluster_size.unwrap_or(MIN_CLUSTER_SIZE_DEFAULT);
         HdbscanHyperParams {
             min_cluster_size,
-            max_cluster_size,
+            max_cluster_size: self.max_cluster_size.unwrap_or(MAX_CLUSTER_SIZE_DEFAULT),
             allow_single_cluster: self.allow_single_cluster.unwrap_or(ALLOW_SINGLE_CLUSTER_DEFAULT),
-            min_samples,
+            min_samples: self.min_samples.unwrap_or(min_cluster_size),
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),
+        }
+    }
+
+    fn validate_input_left_bound(input_param: usize, left_bound: usize, param: &str) -> usize {
+        if input_param < left_bound {
+            println!(
+                "hdbscan warning: {param} ({input_param}) cannot be lower than {left_bound}. \
+                Set to {left_bound}.");
+            left_bound
+        } else {
+            input_param
         }
     }
 

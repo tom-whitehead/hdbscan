@@ -49,13 +49,13 @@ let data: Vec<Vec<f32>> = vec![
     vec![10.0, 10.0],
 ];
 let clusterer = Hdbscan::default(&data);
-let result = clusterer.cluster().unwrap();
+let labels = clusterer.cluster().unwrap();
 //First five points form one cluster
-assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
+assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
 // Next five points are a second cluster
-assert_eq!(1, result[5..10].iter().collect::<HashSet<_>>().len());
+assert_eq!(1, labels[5..10].iter().collect::<HashSet<_>>().len());
 // The final point is noise
-assert_eq!(-1, result[10]);
+assert_eq!(-1, labels[10]);
 ```
 
 ### With custom hyper parameters
@@ -78,13 +78,13 @@ let hyper_params = HdbscanHyperParams::builder()
     .dist_metric(DistanceMetric::Manhattan)
     .build();
 let clusterer = Hdbscan::new(&data, hyper_params);
-let result = clusterer.cluster().unwrap();
+let labels = clusterer.cluster().unwrap();
 // First three points form one cluster
-assert_eq!(1, result[..3].iter().collect::<HashSet<_>>().len());
+assert_eq!(1, labels[..3].iter().collect::<HashSet<_>>().len());
 // Next three points are a second cluster
-assert_eq!(1, result[3..6].iter().collect::<HashSet<_>>().len());
+assert_eq!(1, labels[3..6].iter().collect::<HashSet<_>>().len());
 // The final point is noise
-assert_eq!(-1, result[6]);
+assert_eq!(-1, labels[6]);
 ```
 
 ### Calculate cluster centroids
