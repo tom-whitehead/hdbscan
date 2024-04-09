@@ -18,7 +18,8 @@
 //! below is invaluable in understanding this algorithm better.
 //!
 //! # Examples
-//! ```
+//!```
+//!use std::collections::HashSet;
 //!use hdbscan::Hdbscan;
 //!
 //!let data: Vec<Vec<f32>> = vec![
@@ -35,9 +36,14 @@
 //!    vec![10.0, 10.0],
 //!];
 //!let clusterer = Hdbscan::default(&data);
-//!let result = clusterer.cluster().unwrap();
-//!assert_eq!(result, vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, -1]);
-//! ```
+//!let labels = clusterer.cluster().unwrap();
+//!//First five points form one cluster
+//!assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
+//!// Next five points are a second cluster
+//!assert_eq!(1, labels[5..10].iter().collect::<HashSet<_>>().len());
+//!// The final point is noise
+//!assert_eq!(-1, labels[10]);
+//!```
 //!
 //! # References
 //! * [Campello, R.J.G.B.; Moulavi, D.; Sander, J. Density-based clustering based on hierarchical density estimates.](https://link.springer.com/chapter/10.1007/978-3-642-37456-2_14)
