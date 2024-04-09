@@ -18,7 +18,8 @@
 //! below is invaluable in understanding this algorithm better.
 //!
 //! # Examples
-//! ```
+//!```
+//!use std::collections::HashSet;
 //!use hdbscan::Hdbscan;
 //!
 //!let data: Vec<Vec<f32>> = vec![
@@ -35,9 +36,14 @@
 //!    vec![10.0, 10.0],
 //!];
 //!let clusterer = Hdbscan::default(&data);
-//!let result = clusterer.cluster().unwrap();
-//!assert_eq!(result, vec![0, 0, 0, 0, 0, 1, 1, 1, 1, 1, -1]);
-//! ```
+//!let labels = clusterer.cluster().unwrap();
+//!//First five points form one cluster
+//!assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
+//!// Next five points are a second cluster
+//!assert_eq!(1, labels[5..10].iter().collect::<HashSet<_>>().len());
+//!// The final point is noise
+//!assert_eq!(-1, labels[10]);
+//!```
 //!
 //! # References
 //! * [Campello, R.J.G.B.; Moulavi, D.; Sander, J. Density-based clustering based on hierarchical density estimates.](https://link.springer.com/chapter/10.1007/978-3-642-37456-2_14)
@@ -61,6 +67,8 @@ mod distance;
 mod error;
 mod union_find;
 mod centers;
+
+type CondensedTree<T> = Vec<CondensedNode<T>>;
 
 /// The HDBSCAN clustering algorithm in Rust. Generic over floating point numeric types.
 pub struct Hdbscan<'a, T> {
@@ -224,7 +232,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
     /// ```
     pub fn calc_centers(
-        &self, center: Center, labels: &Vec<i32>) -> Result<Vec<Vec<T>>, HdbscanError> {
+        &self, center: Center, labels: &[i32]) -> Result<Vec<Vec<T>>, HdbscanError> {
         assert_eq!(labels.len(), self.data.len());
         Ok(center.calc_centers(self.data, labels))
     }
@@ -256,7 +264,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let mut tree = KdTree::new(self.n_dims);
         self.data.iter().enumerate()
             // Unwrap should be safe due to data validation above
-            // TODO: Address duplication of validation above and in KdTree
             .for_each(|(n, datum)| tree.add(datum, n).unwrap());
 
         let k = self.hyper_params.min_samples;
@@ -273,7 +280,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect()
     }
 
-    fn prims_min_spanning_tree(&self, core_distances: &Vec<T>) -> Vec<MSTEdge<T>> {
+    fn prims_min_spanning_tree(&self, core_distances: &[T]) -> Vec<MSTEdge<T>> {
         // TODO: Move out to a dedicated object and inject to enable use of other mst algorithms
         let mut in_tree = vec![false; self.n_samples];
         let mut distances = vec![T::infinity(); self.n_samples];
@@ -308,7 +315,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         mst
     }
 
-    fn calc_mutual_reachability_dist(&self, a: usize, b: usize, core_distances: &Vec<T>) -> T {
+    fn calc_mutual_reachability_dist(&self, a: usize, b: usize, core_distances: &[T]) -> T {
         let core_dist_a = core_distances[a];
         let core_dist_b = core_distances[b];
         let dist_a_b = self.hyper_params.dist_metric.calc_dist(&self.data[a], &self.data[b]);
@@ -316,11 +323,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         core_dist_a.max(core_dist_b).max(dist_a_b)
     }
 
-    fn sort_mst_by_dist(&self, min_spanning_tree: &mut Vec<MSTEdge<T>>) {
+    fn sort_mst_by_dist(&self, min_spanning_tree: &mut [MSTEdge<T>]) {
         min_spanning_tree.sort_by(|a, b| a.distance.partial_cmp(&b.distance).unwrap());
     }
 
-    fn make_single_linkage_tree(&self, min_spanning_tree: &Vec<MSTEdge<T>>) -> Vec<SLTNode<T>> {
+    fn make_single_linkage_tree(&self, min_spanning_tree: &[MSTEdge<T>]) -> Vec<SLTNode<T>> {
         let mut single_linkage_tree: Vec<SLTNode<T>> = Vec::with_capacity(self.n_samples - 1);
 
         let mut union_find = UnionFind::new(self.n_samples);
@@ -344,7 +351,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         single_linkage_tree
     }
 
-    fn condense_tree(&self, single_linkage_tree: &Vec<SLTNode<T>>) -> Vec<CondensedNode<T>> {
+    fn condense_tree(&self, single_linkage_tree: &[SLTNode<T>]) -> CondensedTree<T> {
         let top_node = (self.n_samples - 1) * 2;
         let node_ids = self.find_slt_children_breadth_first(single_linkage_tree, top_node);
 
@@ -353,7 +360,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let mut next_parent_id = self.n_samples + 1;
 
         let mut visited = vec![false; node_ids.len()];
-        let mut condensed_tree: Vec<CondensedNode<T>> = Vec::new();
+        let mut condensed_tree = Vec::new();
 
         for node_id in node_ids {
             let has_been_visited = visited[node_id];
@@ -408,12 +415,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
     fn find_slt_children_breadth_first(
         &self,
-        single_linkage_tree: &Vec<SLTNode<T>>,
+        single_linkage_tree: &[SLTNode<T>],
         root: usize
     ) -> Vec<usize> {
 
         let mut process_queue = VecDeque::from([root]);
-        let mut child_nodes: Vec<usize> = Vec::new();
+        let mut child_nodes = Vec::new();
 
         while !process_queue.is_empty() {
             let mut current_node_id = match process_queue.pop_front() {
@@ -446,9 +453,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         if dist > T::zero() { T::one() / dist } else { T::infinity() }
     }
 
-    fn extract_cluster_size(
-        &self, node_id: usize, single_linkage_tree: &Vec<SLTNode<T>>) -> usize {
-
+    fn extract_cluster_size(&self, node_id: usize, single_linkage_tree: &[SLTNode<T>]) -> usize {
         if self.is_individual_sample(&node_id) {
             1
         } else {
@@ -464,8 +469,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         node_id: usize,
         new_node_id: usize,
-        single_linkage_tree: &Vec<SLTNode<T>>,
-        condensed_tree: &mut Vec<CondensedNode<T>>,
+        single_linkage_tree: &[SLTNode<T>],
+        condensed_tree: &mut CondensedTree<T>,
         visited: &mut Vec<bool>,
         lambda_birth: T
     ) {
@@ -479,7 +484,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
     }
 
-    fn extract_winning_clusters(&self, condensed_tree: &Vec<CondensedNode<T>>) -> Vec<usize> {
+    fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
         let n_clusters = condensed_tree.len() - self.n_samples + 1;
         let stabilities = self.calc_all_stabilities(n_clusters, &condensed_tree);
         let mut selected_clusters: HashMap<usize, bool> =
@@ -518,7 +523,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn calc_all_stabilities(
         &self,
         n_clusters: usize,
-        condensed_tree: &Vec<CondensedNode<T>>
+        condensed_tree: &CondensedTree<T>
     ) -> BTreeMap<usize, RefCell<T>> {
 
         (0..n_clusters).into_iter()
@@ -530,7 +535,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect()
     }
 
-    fn calc_stability(&self, cluster_id: usize, condensed_tree: &Vec<CondensedNode<T>>) -> T {
+    fn calc_stability(&self, cluster_id: usize, condensed_tree: &CondensedTree<T>) -> T {
         let lambda_birth = self.extract_lambda_birth(cluster_id, &condensed_tree);
         condensed_tree.iter()
             .filter(|node| node.parent_node_id == cluster_id)
@@ -538,9 +543,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .fold(T::zero(), std::ops::Add::add)
     }
 
-    fn extract_lambda_birth(
-        &self, cluster_id: usize, condensed_tree: &Vec<CondensedNode<T>>) -> T {
-
+    fn extract_lambda_birth(&self, cluster_id: usize, condensed_tree: &CondensedTree<T>) -> T {
         if self.is_top_cluster(&cluster_id) {
             T::zero()
         } else {
@@ -558,7 +561,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn get_immediate_child_clusters<'b>(
         &'b self,
         cluster_id: usize,
-        condensed_tree: &'b Vec<CondensedNode<T>>
+        condensed_tree: &'b CondensedTree<T>
     ) -> Vec<&CondensedNode<T>> {
         condensed_tree.iter()
             .filter(|node| node.parent_node_id == cluster_id)
@@ -566,20 +569,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect()
     }
 
-    fn is_cluster_too_big(
-        &self,
-        cluster_id: &usize,
-        condensed_tree: &Vec<CondensedNode<T>>
-    ) -> bool {
+    fn is_cluster_too_big(&self, cluster_id: &usize, condensed_tree: &CondensedTree<T>) -> bool {
         self.get_cluster_size(cluster_id, &condensed_tree) > self.hyper_params.max_cluster_size
     }
 
-    fn get_cluster_size(
-        &self,
-        cluster_id: &usize,
-        condensed_tree: &Vec<CondensedNode<T>>
-    ) -> usize {
-
+    fn get_cluster_size(&self, cluster_id: &usize, condensed_tree: &CondensedTree<T>) -> usize {
         if self.hyper_params.allow_single_cluster && self.is_top_cluster(cluster_id) {
             condensed_tree.iter()
                 .filter(|node| self.is_cluster(&node.node_id))
@@ -599,11 +593,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn find_child_clusters(
         &self,
         root_node_id: &usize,
-        condensed_tree: &Vec<CondensedNode<T>>
+        condensed_tree: &CondensedTree<T>
     ) -> Vec<usize> {
 
         let mut process_queue = VecDeque::from([root_node_id]);
-        let mut child_clusters: Vec<usize> = Vec::new();
+        let mut child_clusters= Vec::new();
 
         while !process_queue.is_empty() {
             let current_node_id = match process_queue.pop_front() {
@@ -627,7 +621,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn label_data(
         &self,
         winning_clusters: &Vec<usize>,
-        condensed_tree: &Vec<CondensedNode<T>>
+        condensed_tree: &CondensedTree<T>
     ) -> Vec<i32> {
 
         // Assume all data points are noise by default then label the ones in clusters
@@ -647,11 +641,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         root_node_id: usize,
         node_size: usize,
-        condensed_tree: &Vec<CondensedNode<T>>
+        condensed_tree: &CondensedTree<T>
     ) -> Vec<usize> {
 
         let mut process_queue = VecDeque::from([root_node_id]);
-        let mut child_nodes: Vec<usize> = Vec::with_capacity(node_size);
+        let mut child_nodes = Vec::with_capacity(node_size);
 
         while !process_queue.is_empty() {
             let current_node_id = match process_queue.pop_front() {

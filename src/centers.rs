@@ -10,21 +10,20 @@ pub enum Center {
 
 impl Center {
     pub(crate) fn calc_centers<T: Float>(
-        &self, data: &Vec<Vec<T>>, labels: &Vec<i32>) -> Vec<Vec<T>> {
-        assert_eq!(data.len(), labels.len());
+        &self, data: &Vec<Vec<T>>, labels: &[i32]) -> Vec<Vec<T>> {
         match self {
             Center::Centroid  => self.calc_centroids(data, labels),
         }
     }
 
-    fn calc_centroids<T: Float>(&self, data: &Vec<Vec<T>>, labels: &Vec<i32>) ->  Vec<Vec<T>> {
+    fn calc_centroids<T: Float>(&self, data: &Vec<Vec<T>>, labels: &[i32]) ->  Vec<Vec<T>> {
         // All points weighted equally
         let weights = vec![T::one(); data.len()];
-        Self::calc_weighted_centroids(data, labels, &weights)
+        Center::calc_weighted_centroids(data, labels, &weights)
     }
 
     fn calc_weighted_centroids<T: Float>(
-        data: &Vec<Vec<T>>, labels: &Vec<i32>, weights: &Vec<T>) ->  Vec<Vec<T>> {
+        data: &Vec<Vec<T>>, labels: &[i32], weights: &Vec<T>) ->  Vec<Vec<T>> {
         let n_dims = data[0].len();
         let n_clusters = labels
             .iter()
