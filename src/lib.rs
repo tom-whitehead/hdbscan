@@ -51,7 +51,6 @@
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use kdtree::KdTree;
 use num_traits::Float;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
@@ -61,12 +60,13 @@ pub use crate::distance::DistanceMetric;
 pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
 pub use crate::error::HdbscanError;
 
-mod hyper_parameters;
+mod centers;
 mod data_wrappers;
 mod distance;
 mod error;
+mod hyper_parameters;
+mod nearest_neighbour;
 mod union_find;
-mod centers;
 
 type CondensedTree<T> = Vec<CondensedNode<T>>;
 
@@ -74,7 +74,6 @@ type CondensedTree<T> = Vec<CondensedNode<T>>;
 pub struct Hdbscan<'a, T> {
     data: &'a Vec<Vec<T>>,
     n_samples: usize,
-    n_dims: usize,
     hyper_params: HdbscanHyperParams,
 }
 
@@ -115,8 +114,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// ```
     pub fn new(data: &'a Vec<Vec<T>>, hyper_params: HdbscanHyperParams) -> Self {
         let n_samples = data.len();
-        let n_dims = if data.is_empty() {0} else { data[0].len() };
-        Hdbscan { data, n_samples, n_dims , hyper_params }
+        Hdbscan { data, n_samples, hyper_params, }
     }
 
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
@@ -260,24 +258,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn calc_core_distances(&self) -> Vec<T> {
-        // TODO: Wrap KdTree in standardised interface and inject
-        let mut tree = KdTree::new(self.n_dims);
-        self.data.iter().enumerate()
-            // Unwrap should be safe due to data validation above
-            .for_each(|(n, datum)| tree.add(datum, n).unwrap());
-
-        let k = self.hyper_params.min_samples;
-        let dist_func = distance::get_dist_func::<T>(&self.hyper_params.dist_metric);
-        self.data.iter()
-            .map(|datum| {
-                // Unwrap should be safe due to data validation above
-                let result = tree.nearest(datum, k, &dist_func).unwrap();
-                result.into_iter()
-                    .map(|(dist, _idx)| dist)
-                    .last()
-                    .unwrap()
-            })
-            .collect()
+        self.hyper_params.nn_algo.calc_dist_to_kth_neighbours(
+            &self.data, self.hyper_params.min_samples, &self.hyper_params.dist_metric)
     }
 
     fn prims_min_spanning_tree(&self, core_distances: &[T]) -> Vec<MSTEdge<T>> {

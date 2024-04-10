@@ -1,4 +1,5 @@
 use crate::distance::DistanceMetric;
+use crate::nearest_neighbour::NearestNeighbour;
 
 // Defaults for parameters
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
@@ -21,6 +22,7 @@ pub struct HdbscanHyperParams {
     pub(crate) allow_single_cluster: bool,
     pub(crate) min_samples: usize,
     pub(crate) dist_metric: DistanceMetric,
+    pub(crate) nn_algo: NearestNeighbour,
 }
 
 /// Builder object to set custom hyper parameters.
@@ -145,6 +147,7 @@ impl HyperParamBuilder {
             allow_single_cluster: self.allow_single_cluster.unwrap_or(ALLOW_SINGLE_CLUSTER_DEFAULT),
             min_samples: self.min_samples.unwrap_or(min_cluster_size),
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),
+            nn_algo: NearestNeighbour::KdTree,
         }
     }
 
