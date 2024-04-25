@@ -1,3 +1,11 @@
+# Version 0.6.0 2024-04-25
+## Changes
+- Added the ability to specify the nearest neighbour algorithm in the `HyperParamBuilder` and also implemented a brute
+  force nearest neighbour algorithm. Internally, HDBSCAN calculates a density measure called core distances, 
+  which is defined as the distance of a data point to it's kth neighbour. Now it is possible to choose the nearest 
+  neighbour algorithm using the `NnAlgorithm` enum, being any of `Auto`, `KdTree` or `BruteForce`. `Auto` will choose 
+  the algorithm internally based on the nature of the data.
+
 # Version 0.5.0 2024-04-01
 ## Changes
 - Performance gain, which allows the algorithm to scale better to larger datasets as fewer operations are now 

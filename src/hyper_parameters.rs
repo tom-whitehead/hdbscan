@@ -1,11 +1,12 @@
 use crate::distance::DistanceMetric;
-use crate::nearest_neighbour::NearestNeighbour;
+use crate::core_distances::NnAlgorithm;
 
 // Defaults for parameters
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
 const MAX_CLUSTER_SIZE_DEFAULT: usize = usize::MAX; // Set to a value that will never be triggered
 const ALLOW_SINGLE_CLUSTER_DEFAULT: bool = false;
 const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
+const NN_ALGORITHM_DEFAULT: NnAlgorithm = NnAlgorithm::Auto;
 
 // Valid minimums/left bounds of parameters
 const MIN_CLUSTER_SIZE_MINIMUM: usize = 2;
@@ -22,7 +23,7 @@ pub struct HdbscanHyperParams {
     pub(crate) allow_single_cluster: bool,
     pub(crate) min_samples: usize,
     pub(crate) dist_metric: DistanceMetric,
-    pub(crate) nn_algo: NearestNeighbour,
+    pub(crate) nn_algo: NnAlgorithm,
 }
 
 /// Builder object to set custom hyper parameters.
@@ -32,6 +33,7 @@ pub struct HyperParamBuilder {
     allow_single_cluster: Option<bool>,
     min_samples: Option<usize>,
     dist_metric: Option<DistanceMetric>,
+    nn_algo: Option<NnAlgorithm>,
 }
 
 impl HdbscanHyperParams {
@@ -51,6 +53,7 @@ impl HdbscanHyperParams {
             allow_single_cluster: None,
             min_samples: None,
             dist_metric: None,
+            nn_algo: None,
         }
     }
 }
@@ -121,8 +124,8 @@ impl HyperParamBuilder {
         self
     }
 
-    /// Sets the distance metric. HDBSCAN uses this metric to calculate the distance between data points.
-    /// Defaults to Euclidean. Options are defined by the DistanceMetric enum.
+    /// Sets the distance metric. HDBSCAN uses this metric to calculate the distance between 
+    /// data points. Defaults to Euclidean. Options are defined by the DistanceMetric enum.
     ///
     /// # Parameters
     /// * dist_metric - the distance metric
@@ -131,6 +134,22 @@ impl HyperParamBuilder {
     /// * the hyper parameter configuration builder
     pub fn dist_metric(mut self, dist_metric: DistanceMetric) -> HyperParamBuilder {
         self.dist_metric = Some(dist_metric);
+        self
+    }
+    
+    /// Sets the nearest neighbour algorithm. Internally, HDBSCAN calculates a density measure
+    /// called core distances, which is defined as the distance of a data point to it's kth 
+    /// (min_samples-th) neighbour. 
+    /// The primary reason for changing this parameter is performance. For example, using BruteForce 
+    /// involves computing a distance matrix between all data points. This works fine on small 
+    /// datasets, however scales poorly to larger ones.
+    /// Defaults to Auto, whereby the nearest neighbour algorithm will be chosen internally based
+    /// on size and dimensionality of the input data. 
+    /// 
+    /// # Returns
+    /// * the hyper parameter configuration builder
+    pub fn nn_algorithm(mut self, nn_algorithm: NnAlgorithm) -> HyperParamBuilder {
+        self.nn_algo = Some(nn_algorithm);
         self
     }
     
@@ -147,15 +166,16 @@ impl HyperParamBuilder {
             allow_single_cluster: self.allow_single_cluster.unwrap_or(ALLOW_SINGLE_CLUSTER_DEFAULT),
             min_samples: self.min_samples.unwrap_or(min_cluster_size),
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),
-            nn_algo: NearestNeighbour::KdTree,
+            nn_algo: self.nn_algo.unwrap_or(NN_ALGORITHM_DEFAULT),
         }
     }
 
     fn validate_input_left_bound(input_param: usize, left_bound: usize, param: &str) -> usize {
         if input_param < left_bound {
             println!(
-                "hdbscan warning: {param} ({input_param}) cannot be lower than {left_bound}. \
-                Set to {left_bound}.");
+                "HDBSCAN_WARNING: {param} ({input_param}) cannot be lower \
+                than {left_bound}. Set to {left_bound}."
+            );
             left_bound
         } else {
             input_param
