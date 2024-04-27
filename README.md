@@ -61,7 +61,7 @@ assert_eq!(-1, labels[10]);
 ### With custom hyper parameters
 ```rust
 use std::collections::HashSet;
-use hdbscan::{DistanceMetric, Hdbscan, HdbscanHyperParams};
+use hdbscan::{DistanceMetric, Hdbscan, HdbscanHyperParams, NnAlgorithm};
 
 let data: Vec<Vec<f32>> = vec![
     vec![1.3, 1.1],
@@ -76,6 +76,7 @@ let hyper_params = HdbscanHyperParams::builder()
     .min_cluster_size(3)
     .min_samples(2)
     .dist_metric(DistanceMetric::Manhattan)
+    .nn_algorithm(NnAlgorithm::BruteForce)
     .build();
 let clusterer = Hdbscan::new(&data, hyper_params);
 let labels = clusterer.cluster().unwrap();

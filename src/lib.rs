@@ -52,6 +52,7 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use num_traits::Float;
+use crate::core_distances::{CoreDistance, KdTree, BruteForce};
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
 
@@ -59,14 +60,17 @@ pub use crate::centers::Center;
 pub use crate::distance::DistanceMetric;
 pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
 pub use crate::error::HdbscanError;
+pub use crate::core_distances::NnAlgorithm;
 
 mod centers;
+mod core_distances;
 mod data_wrappers;
 mod distance;
 mod error;
 mod hyper_parameters;
-mod nearest_neighbour;
 mod union_find;
+
+const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
 
 type CondensedTree<T> = Vec<CondensedNode<T>>;
 
@@ -93,7 +97,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///
     /// # Examples
     /// ```
-    ///use hdbscan::{DistanceMetric, Hdbscan, HdbscanHyperParams};
+    ///use hdbscan::{DistanceMetric, Hdbscan, HdbscanHyperParams, NnAlgorithm};
     ///
     ///let data: Vec<Vec<f32>> = vec![
     ///    vec![1.3, 1.1],
@@ -109,6 +113,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    .min_cluster_size(3)
     ///    .min_samples(2)
     ///    .dist_metric(DistanceMetric::Manhattan)
+    ///    .nn_algorithm(NnAlgorithm::BruteForce)
     ///    .build();
     ///let clusterer = Hdbscan::new(&data, config);
     /// ```
@@ -258,8 +263,23 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn calc_core_distances(&self) -> Vec<T> {
-        self.hyper_params.nn_algo.calc_dist_to_kth_neighbours(
-            &self.data, self.hyper_params.min_samples, &self.hyper_params.dist_metric)
+        let (data, k, dist_metric) = (
+            self.data, self.hyper_params.min_samples, self.hyper_params.dist_metric);
+        
+        match (&self.hyper_params.nn_algo, self.n_samples) {
+            (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
+                KdTree::calc_core_distances(data, k, dist_metric)
+            }
+            (NnAlgorithm::Auto, _) => {
+                KdTree::calc_core_distances(data, k, dist_metric)
+            }
+            (NnAlgorithm::BruteForce, _) => {
+                BruteForce::calc_core_distances(data, k, dist_metric)
+            }
+            (NnAlgorithm::KdTree, _) => {
+                KdTree::calc_core_distances(data, k, dist_metric)
+            }
+        }
     }
 
     fn prims_min_spanning_tree(&self, core_distances: &[T]) -> Vec<MSTEdge<T>> {
@@ -688,6 +708,7 @@ mod tests {
             .min_cluster_size(3)
             .min_samples(2)
             .dist_metric(DistanceMetric::Manhattan)
+            .nn_algorithm(NnAlgorithm::BruteForce)
             .build();
         let clusterer = Hdbscan::new(&data, hyper_params);
         let result = clusterer.cluster().unwrap();

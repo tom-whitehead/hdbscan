@@ -2,6 +2,7 @@ use num_traits::Float;
 
 /// Possible distance metrics that can be used in the HDBSCAN algorithm when
 /// calculating the distances between data points.
+#[derive(Copy, Clone)]
 pub enum DistanceMetric {
     Euclidean,
     Manhattan,
@@ -24,15 +25,16 @@ pub(crate) fn get_dist_func<'a, T: Float>(metric: &DistanceMetric) -> impl Fn(&[
 }
 
 pub(crate) fn euclidean_distance<T: Float>(a: &[T], b: &[T]) -> T {
-    let squared_euclidean = a.iter()
+    a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)) * ((*x) - (*y)))
-        .fold(T::zero(), std::ops::Add::add);
-    T::sqrt(squared_euclidean)
+        .fold(T::zero(), std::ops::Add::add)
+        .sqrt()
 }
 
 pub(crate) fn manhattan_distance<T: Float>(a: &[T], b: &[T]) -> T {
-    a.iter().zip(b.iter())
+    a.iter()
+        .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)).abs())
         .fold(T::zero(), std::ops::Add::add)
 }

@@ -1,6 +1,6 @@
 [package]
 name = "hdbscan"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = [ "Tom Whitehead <t.j.whitehead21@gmail.com>", ]
 description = "HDBSCAN clustering in pure Rust. A huge improvement on DBSCAN, capable of identifying clusters of varying densities."
@@ -10,7 +10,6 @@ readme = "README.md"
 keywords = ["machine-learning", "clustering", "ai", "ml", "dbscan"]
 categories = ["algorithms", "mathematics", "science"]
 
-
 [dependencies]
-kdtree = "0.7.0"
 num-traits = "0.2.18"
+kdtree = "0.7.0"
