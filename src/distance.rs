@@ -49,8 +49,7 @@ pub(crate) fn chebyshev_distance<T: Float>(a: &[T], b: &[T]) -> T {
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)).abs())
-        .max_by(|a, b| a.partial_cmp(b).expect("inputs were validated"))
-        .expect("inputs were validated")
+        .fold(T::zero(), T::max)
 }
 
 fn assert_inputs<T: Float>(a: &[T], b: &[T]) {

@@ -10,9 +10,9 @@ impl UnionFind {
         let length = 2 * n_samples - 1;
         let parent = vec![length; length];
         let next_label = n_samples;
-        let size = (0..length).into_iter().map(|n| {
-            if n < n_samples { 1 } else { 0 }
-        }).collect();
+        let size = (0..length).into_iter()
+            .map(|n| if n < n_samples { 1 } else { 0 })
+            .collect();
 
         UnionFind { parent, next_label, size }
     }
