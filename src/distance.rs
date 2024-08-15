@@ -2,7 +2,7 @@ use num_traits::Float;
 
 /// Possible distance metrics that can be used in the HDBSCAN algorithm when
 /// calculating the distances between data points.
-#[derive(Copy, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DistanceMetric {
     Euclidean,
     Manhattan,

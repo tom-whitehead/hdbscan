@@ -1,3 +1,11 @@
+# Version 0.7.0 2024-08-15
+## Changes
+- Added the `epsilon` hyper parameter.  In HDBSCAN, each cluster has an epsilon value, which is the distance threshold 
+  at which the cluster first appears, or the level that it splits from its parent cluster. Setting this epsilon 
+  parameter creates a distance threshold that a cluster must have existed at to be selected. If a cluster does not meet 
+  this threshold, it will be merged and the algorithm will search for a parent cluster that does meet the threshold.
+- Derived `Debug` for all exported types. 
+
 # Version 0.6.0 2024-04-25
 ## Changes
 - Added the ability to specify the nearest neighbour algorithm in the `HyperParamBuilder` and also implemented a brute

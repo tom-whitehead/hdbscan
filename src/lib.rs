@@ -75,6 +75,7 @@ const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
 type CondensedTree<T> = Vec<CondensedNode<T>>;
 
 /// The HDBSCAN clustering algorithm in Rust. Generic over floating point numeric types.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Hdbscan<'a, T> {
     data: &'a Vec<Vec<T>>,
     n_samples: usize,
@@ -148,7 +149,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///];
     ///let clusterer = Hdbscan::default(&data);
     /// ```
-    pub fn default(data: &'a Vec<Vec<T>>) -> Self {
+    pub fn default(data: &'a Vec<Vec<T>>) -> Hdbscan<T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
     }
@@ -362,7 +363,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
     fn condense_tree(&self, single_linkage_tree: &[SLTNode<T>]) -> CondensedTree<T> {
         let top_node = (self.n_samples - 1) * 2;
-        let node_ids = self.find_slt_children_breadth_first(single_linkage_tree, top_node);
+        let node_ids = self.find_single_linkage_children(single_linkage_tree, top_node);
 
         let mut new_node_ids = vec![0_usize; top_node + 1];
         new_node_ids[top_node] = self.n_samples;
@@ -431,7 +432,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         condensed_tree
     }
 
-    fn find_slt_children_breadth_first(
+    fn find_single_linkage_children(
         &self,
         single_linkage_tree: &[SLTNode<T>],
         root: usize
@@ -493,7 +494,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         lambda_birth: T
     ) {
 
-        for child_id in self.find_slt_children_breadth_first(&single_linkage_tree, node_id) {
+        for child_id in self.find_single_linkage_children(&single_linkage_tree, node_id) {
             if self.is_individual_sample(&child_id) {
                 condensed_tree.push(CondensedNode {
                     node_id: child_id, parent_node_id: new_node_id, lambda_birth, size: 1 })
@@ -505,7 +506,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
         let n_clusters = condensed_tree.len() - self.n_samples + 1;
         let stabilities = self.calc_all_stabilities(n_clusters, &condensed_tree);
-        let mut selected_clusters: HashMap<usize, bool> =
+        let mut clusters: HashMap<usize, bool> =
             stabilities.keys().map(|id| (id.clone(), false)).collect();
 
         for (cluster_id, stability) in stabilities.iter().rev() {
@@ -520,15 +521,15 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
             if *stability.borrow() > combined_child_stability
                 && !self.is_cluster_too_big(cluster_id, condensed_tree) {
-                *selected_clusters
+                *clusters
                     .get_mut(&cluster_id)
                     .expect("Couldn't retrieve stability") = true;
 
                 // If child clusters were already marked as winning clusters reverse
                 self.find_child_clusters(&cluster_id, &condensed_tree).iter().for_each(|node_id| {
-                    let is_child_selected = selected_clusters.get(node_id);
+                    let is_child_selected = clusters.get(node_id);
                     if let Some(true) = is_child_selected {
-                        *selected_clusters
+                        *clusters
                             .get_mut(node_id)
                             .expect("Couldn't retrieve stability") = false;
                     }
@@ -541,10 +542,16 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             }
         }
 
-        selected_clusters.into_iter()
+        let mut selected_cluster_ids = clusters.into_iter()
             .filter(|(_id, should_keep)| *should_keep)
             .map(|(id, _should_keep)| id)
-            .collect()
+            .collect();
+        if self.hp.epsilon != 0.0 && n_clusters > 0 {
+            selected_cluster_ids =
+                self.check_cluster_epsilons(selected_cluster_ids, &condensed_tree);
+        }
+
+        selected_cluster_ids
     }
 
     fn calc_all_stabilities(
@@ -645,6 +652,91 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             }
         }
         child_clusters
+    }
+
+    fn check_cluster_epsilons(
+        &self,
+        winning_clusters: Vec<usize>,
+        condensed_tree: &CondensedTree<T>
+    ) -> Vec<usize> {
+
+        let epsilon = T::from(self.hp.epsilon).expect("Couldn't convert f64 epsilon to T");
+        let mut processed: Vec<usize> = Vec::new();
+        let mut winning_epsilon_clusters = Vec::new();
+
+        for cluster_id in winning_clusters.iter() {
+            let cluster_epsilon = self.calc_cluster_epsilon(*cluster_id, &condensed_tree, epsilon);
+            
+            if cluster_epsilon < epsilon {
+                if processed.contains(&cluster_id) {
+                    continue;
+                }
+                let winning_cluster_id = self
+                    .find_higher_node_sufficient_epsilon(*cluster_id, &condensed_tree, epsilon);
+                winning_epsilon_clusters.push(winning_cluster_id);
+                
+                for sub_node in self.find_child_clusters(&winning_cluster_id, &condensed_tree) {
+                    if sub_node != winning_cluster_id {
+                        processed.push(sub_node)
+                    }
+                }
+
+            } else {
+                winning_epsilon_clusters.push(*cluster_id);
+            }
+        }
+        winning_epsilon_clusters
+    }
+
+    fn find_higher_node_sufficient_epsilon(
+        &self,
+        starting_cluster_id: usize,
+        condensed_tree: &CondensedTree<T>,
+        epsilon: T
+    ) -> usize {
+        
+        let mut current_id = starting_cluster_id;
+        let winning_cluster_id;
+        loop {
+            let parent_id = condensed_tree.iter()
+                .find(|node| node.node_id == current_id)
+                .map(|node| node.parent_node_id)
+                .expect("Couldn't find node");
+            if self.is_top_cluster(&parent_id) {
+                if self.hp.allow_single_cluster {
+                    winning_cluster_id = parent_id;
+                } else {
+                    winning_cluster_id = current_id;
+                }
+                break;
+            }
+
+            let parent_epsilon = self.calc_cluster_epsilon(parent_id, &condensed_tree, epsilon);
+            if parent_epsilon > epsilon {
+                winning_cluster_id = parent_id;
+                break;
+            }
+            current_id = parent_id;
+        }
+
+        winning_cluster_id
+    }
+    
+    fn calc_cluster_epsilon(
+        &self, 
+        cluster_id: usize, 
+        condensed_tree: &CondensedTree<T>, 
+        epsilon: T
+    ) -> T {
+        
+        let cluster_lambda = condensed_tree.iter()
+            .find(|node| node.node_id == cluster_id)
+            .map(|node| node.lambda_birth);
+        match cluster_lambda {
+            Some(lambda) => T::one() / lambda,
+            // Should be unreachable, but set to a value that will skip the cluster
+            None => epsilon - T::one(),
+        }
     }
 
     fn label_data(

@@ -27,8 +27,6 @@ Further, this implementation uses Prim's algorithm to find the minimum spanning 
 will perform the best for dense vectors and therefore most uses cases. However, Kruskal's algorithm is another
 possibility for this, that would perform better on sparse vectors.
 
-I also hope to be able to offer more hyper parameters to tune the algorithm.
-
 # Usage
 ### With default hyper parameters
 ```rust
