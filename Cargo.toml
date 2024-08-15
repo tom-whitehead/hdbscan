@@ -1,6 +1,6 @@
 [package]
 name = "hdbscan"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = [ "Tom Whitehead <t.j.whitehead21@gmail.com>", ]
 description = "HDBSCAN clustering in pure Rust. A huge improvement on DBSCAN, capable of identifying clusters of varying densities."

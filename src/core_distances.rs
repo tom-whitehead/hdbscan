@@ -2,6 +2,7 @@ use num_traits::Float;
 use crate::{distance, DistanceMetric};
 
 /// The nearest neighbour algorithm options
+#[derive(Debug, Clone, PartialEq)]
 pub enum NnAlgorithm {
     /// HDBSCAN internally selects the nearest neighbour based on size
     /// and dimensionality of the input data
