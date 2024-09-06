@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use num_traits::Float;
+use std::collections::HashSet;
 
 /// Possible methodologies for calculating the center of clusters
 pub enum Center {
@@ -9,21 +9,23 @@ pub enum Center {
 }
 
 impl Center {
-    pub(crate) fn calc_centers<T: Float>(
-        &self, data: &Vec<Vec<T>>, labels: &[i32]) -> Vec<Vec<T>> {
+    pub(crate) fn calc_centers<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
         match self {
-            Center::Centroid  => self.calc_centroids(data, labels),
+            Center::Centroid => self.calc_centroids(data, labels),
         }
     }
 
-    fn calc_centroids<T: Float>(&self, data: &Vec<Vec<T>>, labels: &[i32]) ->  Vec<Vec<T>> {
+    fn calc_centroids<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
         // All points weighted equally
         let weights = vec![T::one(); data.len()];
         Center::calc_weighted_centroids(data, labels, &weights)
     }
 
     fn calc_weighted_centroids<T: Float>(
-        data: &Vec<Vec<T>>, labels: &[i32], weights: &Vec<T>) ->  Vec<Vec<T>> {
+        data: &[Vec<T>],
+        labels: &[i32],
+        weights: &[T],
+    ) -> Vec<Vec<T>> {
         let n_dims = data[0].len();
         let n_clusters = labels
             .iter()
@@ -38,7 +40,9 @@ impl Center {
             for n in 0..data.len() {
                 if cluster_id == labels[n] {
                     count = count + T::one();
-                    element_wise_mean = data[n].iter().zip(element_wise_mean.iter())
+                    element_wise_mean = data[n]
+                        .iter()
+                        .zip(element_wise_mean.iter())
                         .map(|(&element, &sum)| (element * weights[n]) + sum)
                         .collect();
                 }
