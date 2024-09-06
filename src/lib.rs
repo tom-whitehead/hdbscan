@@ -49,18 +49,18 @@
 //! * [Campello, R.J.G.B.; Moulavi, D.; Sander, J. Density-based clustering based on hierarchical density estimates.](https://link.springer.com/chapter/10.1007/978-3-642-37456-2_14)
 //! * [How HDBSCAN Works](https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html)
 
-use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, VecDeque};
-use num_traits::Float;
-use crate::core_distances::{CoreDistance, KdTree, BruteForce};
+use crate::core_distances::{BruteForce, CoreDistance, KdTree};
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
+use num_traits::Float;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 pub use crate::centers::Center;
-pub use crate::distance::DistanceMetric;
-pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
-pub use crate::error::HdbscanError;
 pub use crate::core_distances::NnAlgorithm;
+pub use crate::distance::DistanceMetric;
+pub use crate::error::HdbscanError;
+pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
 
 mod centers;
 mod core_distances;
@@ -77,13 +77,12 @@ type CondensedTree<T> = Vec<CondensedNode<T>>;
 /// The HDBSCAN clustering algorithm in Rust. Generic over floating point numeric types.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hdbscan<'a, T> {
-    data: &'a Vec<Vec<T>>,
+    data: &'a [Vec<T>],
     n_samples: usize,
     hp: HdbscanHyperParams,
 }
 
 impl<'a, T: Float> Hdbscan<'a, T> {
-
     /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
     /// configuration.
     ///
@@ -118,9 +117,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    .build();
     ///let clusterer = Hdbscan::new(&data, config);
     /// ```
-    pub fn new(data: &'a Vec<Vec<T>>, hyper_params: HdbscanHyperParams) -> Self {
+    pub fn new(data: &'a [Vec<T>], hyper_params: HdbscanHyperParams) -> Self {
         let n_samples = data.len();
-        Hdbscan { data, n_samples, hp: hyper_params, }
+        Hdbscan {
+            data,
+            n_samples,
+            hp: hyper_params,
+        }
     }
 
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
@@ -149,7 +152,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///];
     ///let clusterer = Hdbscan::default(&data);
     /// ```
-    pub fn default(data: &'a Vec<Vec<T>>) -> Hdbscan<T> {
+    pub fn default(data: &'a [Vec<T>]) -> Hdbscan<T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
     }
@@ -241,9 +244,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     pub fn calc_centers(
         &self,
         center: Center,
-        labels: &[i32]
+        labels: &[i32],
     ) -> Result<Vec<Vec<T>>, HdbscanError> {
-
         assert_eq!(labels.len(), self.data.len());
         Ok(center.calc_centers(self.data, labels))
     }
@@ -256,37 +258,32 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         for (n, datapoint) in self.data.iter().enumerate() {
             for element in datapoint {
                 if element.is_infinite() {
-                    return Err(HdbscanError::NonFiniteCoordinate(
-                        format!("{n}th vector contains non-finite element(s)")));
+                    return Err(HdbscanError::NonFiniteCoordinate(format!(
+                        "{n}th vector contains non-finite element(s)"
+                    )));
                 }
             }
 
             let dims_nth = datapoint.len();
             if dims_nth != dims_0th {
-                return Err(HdbscanError::WrongDimension(
-                    format!("Oth data point has {dims_0th} dimensions, but {n}th has {dims_nth}")));
+                return Err(HdbscanError::WrongDimension(format!(
+                    "Oth data point has {dims_0th} dimensions, but {n}th has {dims_nth}"
+                )));
             }
         }
         Ok(())
     }
 
     fn calc_core_distances(&self) -> Vec<T> {
-        let (data, k, dist_metric) = (
-            self.data, self.hp.min_samples, self.hp.dist_metric);
-        
+        let (data, k, dist_metric) = (self.data, self.hp.min_samples, self.hp.dist_metric);
+
         match (&self.hp.nn_algo, self.n_samples) {
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
                 KdTree::calc_core_distances(data, k, dist_metric)
             }
-            (NnAlgorithm::Auto, _) => {
-                KdTree::calc_core_distances(data, k, dist_metric)
-            }
-            (NnAlgorithm::BruteForce, _) => {
-                BruteForce::calc_core_distances(data, k, dist_metric)
-            }
-            (NnAlgorithm::KdTree, _) => {
-                KdTree::calc_core_distances(data, k, dist_metric)
-            }
+            (NnAlgorithm::Auto, _) => KdTree::calc_core_distances(data, k, dist_metric),
+            (NnAlgorithm::BruteForce, _) => BruteForce::calc_core_distances(data, k, dist_metric),
+            (NnAlgorithm::KdTree, _) => KdTree::calc_core_distances(data, k, dist_metric),
         }
     }
 
@@ -317,7 +314,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                     current_min_dist = distances[i];
                 }
             }
-            mst.push(MSTEdge { left_node_id, right_node_id, distance: current_min_dist });
+            mst.push(MSTEdge {
+                left_node_id,
+                right_node_id,
+                distance: current_min_dist,
+            });
             left_node_id = right_node_id;
         }
         self.sort_mst_by_dist(&mut mst);
@@ -333,8 +334,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn sort_mst_by_dist(&self, min_spanning_tree: &mut [MSTEdge<T>]) {
-        min_spanning_tree.sort_by(|a, b|
-            a.distance.partial_cmp(&b.distance).expect("Invalid floats"));
+        min_spanning_tree
+            .sort_by(|a, b| a.distance.partial_cmp(&b.distance).expect("Invalid floats"));
     }
 
     fn make_single_linkage_tree(&self, min_spanning_tree: &[MSTEdge<T>]) -> Vec<SLTNode<T>> {
@@ -342,9 +343,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
         let mut union_find = UnionFind::new(self.n_samples);
 
-        for i in 0..(self.n_samples - 1) {
-            let mst_edge = &min_spanning_tree[i];
-
+        for mst_edge in min_spanning_tree.iter().take(self.n_samples - 1) {
             let left_node = mst_edge.left_node_id;
             let right_node = mst_edge.right_node_id;
             let distance = mst_edge.distance;
@@ -353,7 +352,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             let right_child = union_find.find(right_node);
             let size = union_find.size_of(left_child) + union_find.size_of(right_child);
 
-            single_linkage_tree.push(SLTNode { left_child, right_child, distance, size });
+            single_linkage_tree.push(SLTNode {
+                left_child,
+                right_child,
+                distance,
+                size,
+            });
 
             union_find.union(left_child, right_child);
         }
@@ -391,41 +395,60 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
             match (is_left_a_cluster, is_right_a_cluster) {
                 (true, true) => {
-                    for (child_id, child_size) in [left_child_id, right_child_id].iter()
-                        .zip([left_child_size, right_child_size]) {
+                    for (child_id, child_size) in [left_child_id, right_child_id]
+                        .iter()
+                        .zip([left_child_size, right_child_size])
+                    {
                         new_node_ids[*child_id] = next_parent_id;
                         next_parent_id += 1;
                         condensed_tree.push(CondensedNode {
                             node_id: new_node_ids[*child_id],
                             parent_node_id: new_node_ids[node_id],
                             lambda_birth,
-                            size: child_size
+                            size: child_size,
                         });
                     }
                 }
                 (false, false) => {
                     let new_node_id = new_node_ids[node_id];
                     self.add_children_to_tree(
-                        left_child_id, new_node_id, &single_linkage_tree,
-                        &mut condensed_tree, &mut visited, lambda_birth);
+                        left_child_id,
+                        new_node_id,
+                        single_linkage_tree,
+                        &mut condensed_tree,
+                        &mut visited,
+                        lambda_birth,
+                    );
                     self.add_children_to_tree(
-                        right_child_id, new_node_id, &single_linkage_tree,
-                        &mut condensed_tree, &mut visited, lambda_birth);
-
+                        right_child_id,
+                        new_node_id,
+                        single_linkage_tree,
+                        &mut condensed_tree,
+                        &mut visited,
+                        lambda_birth,
+                    );
                 }
                 (false, true) => {
                     new_node_ids[right_child_id] = new_node_ids[node_id];
                     self.add_children_to_tree(
-                        left_child_id, new_node_ids[node_id], &single_linkage_tree,
-                        &mut condensed_tree, &mut visited, lambda_birth);
-
+                        left_child_id,
+                        new_node_ids[node_id],
+                        single_linkage_tree,
+                        &mut condensed_tree,
+                        &mut visited,
+                        lambda_birth,
+                    );
                 }
                 (true, false) => {
                     new_node_ids[left_child_id] = new_node_ids[node_id];
                     self.add_children_to_tree(
-                        right_child_id, new_node_ids[node_id], &single_linkage_tree,
-                        &mut condensed_tree, &mut visited, lambda_birth);
-
+                        right_child_id,
+                        new_node_ids[node_id],
+                        single_linkage_tree,
+                        &mut condensed_tree,
+                        &mut visited,
+                        lambda_birth,
+                    );
                 }
             }
         }
@@ -435,9 +458,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn find_single_linkage_children(
         &self,
         single_linkage_tree: &[SLTNode<T>],
-        root: usize
+        root: usize,
     ) -> Vec<usize> {
-
         let mut process_queue = VecDeque::from([root]);
         let mut child_nodes = Vec::new();
 
@@ -464,12 +486,15 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn is_cluster(&self, node_id: &usize) -> bool {
-        !self.is_individual_sample(&node_id)
+        !self.is_individual_sample(node_id)
     }
 
-
     fn calc_lambda(&self, dist: T) -> T {
-        if dist > T::zero() { T::one() / dist } else { T::infinity() }
+        if dist > T::zero() {
+            T::one() / dist
+        } else {
+            T::infinity()
+        }
     }
 
     fn extract_cluster_size(&self, node_id: usize, single_linkage_tree: &[SLTNode<T>]) -> usize {
@@ -490,14 +515,17 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         new_node_id: usize,
         single_linkage_tree: &[SLTNode<T>],
         condensed_tree: &mut CondensedTree<T>,
-        visited: &mut Vec<bool>,
-        lambda_birth: T
+        visited: &mut [bool],
+        lambda_birth: T,
     ) {
-
-        for child_id in self.find_single_linkage_children(&single_linkage_tree, node_id) {
+        for child_id in self.find_single_linkage_children(single_linkage_tree, node_id) {
             if self.is_individual_sample(&child_id) {
                 condensed_tree.push(CondensedNode {
-                    node_id: child_id, parent_node_id: new_node_id, lambda_birth, size: 1 })
+                    node_id: child_id,
+                    parent_node_id: new_node_id,
+                    lambda_birth,
+                    size: 1,
+                })
             }
             visited[child_id] = true
         }
@@ -505,50 +533,56 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
     fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
         let n_clusters = condensed_tree.len() - self.n_samples + 1;
-        let stabilities = self.calc_all_stabilities(n_clusters, &condensed_tree);
+        let stabilities = self.calc_all_stabilities(n_clusters, condensed_tree);
         let mut clusters: HashMap<usize, bool> =
-            stabilities.keys().map(|id| (id.clone(), false)).collect();
+            stabilities.keys().map(|id| (*id, false)).collect();
 
         for (cluster_id, stability) in stabilities.iter().rev() {
-            let combined_child_stability =
-                self.get_immediate_child_clusters(*cluster_id, &condensed_tree)
-                    .iter()
-                    .map(|node| {
-                        stabilities.get(&node.node_id)
-                            .unwrap_or(&RefCell::new(T::zero())).borrow().clone()
-                    })
-                    .fold(T::zero(), std::ops::Add::add);
+            let combined_child_stability = self
+                .get_immediate_child_clusters(*cluster_id, condensed_tree)
+                .iter()
+                .map(|node| {
+                    *stabilities
+                        .get(&node.node_id)
+                        .unwrap_or(&RefCell::new(T::zero()))
+                        .borrow()
+                })
+                .fold(T::zero(), std::ops::Add::add);
 
             if *stability.borrow() > combined_child_stability
-                && !self.is_cluster_too_big(cluster_id, condensed_tree) {
+                && !self.is_cluster_too_big(cluster_id, condensed_tree)
+            {
                 *clusters
-                    .get_mut(&cluster_id)
+                    .get_mut(cluster_id)
                     .expect("Couldn't retrieve stability") = true;
 
                 // If child clusters were already marked as winning clusters reverse
-                self.find_child_clusters(&cluster_id, &condensed_tree).iter().for_each(|node_id| {
-                    let is_child_selected = clusters.get(node_id);
-                    if let Some(true) = is_child_selected {
-                        *clusters
-                            .get_mut(node_id)
-                            .expect("Couldn't retrieve stability") = false;
-                    }
-                });
+                self.find_child_clusters(cluster_id, condensed_tree)
+                    .iter()
+                    .for_each(|node_id| {
+                        let is_child_selected = clusters.get(node_id);
+                        if let Some(true) = is_child_selected {
+                            *clusters
+                                .get_mut(node_id)
+                                .expect("Couldn't retrieve stability") = false;
+                        }
+                    });
             } else {
                 stabilities
-                    .get(&cluster_id)
+                    .get(cluster_id)
                     .expect("Couldn't retrieve stability")
                     .replace(combined_child_stability);
             }
         }
 
-        let mut selected_cluster_ids = clusters.into_iter()
+        let mut selected_cluster_ids = clusters
+            .into_iter()
             .filter(|(_id, should_keep)| *should_keep)
             .map(|(id, _should_keep)| id)
             .collect();
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
             selected_cluster_ids =
-                self.check_cluster_epsilons(selected_cluster_ids, &condensed_tree);
+                self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
         }
 
         selected_cluster_ids
@@ -557,23 +591,24 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn calc_all_stabilities(
         &self,
         n_clusters: usize,
-        condensed_tree: &CondensedTree<T>
+        condensed_tree: &CondensedTree<T>,
     ) -> BTreeMap<usize, RefCell<T>> {
-
-        (0..n_clusters).into_iter()
-            .filter(|&n| { 
-                if !self.hp.allow_single_cluster && n == 0 { false } else { true } 
-            })
+        (0..n_clusters)
+            .filter(|&n| (self.hp.allow_single_cluster || n != 0))
             .map(|n| self.n_samples + n)
-            .map(|cluster_id| (
-                cluster_id, RefCell::new(self.calc_stability(cluster_id, &condensed_tree))
-            ))
+            .map(|cluster_id| {
+                (
+                    cluster_id,
+                    RefCell::new(self.calc_stability(cluster_id, condensed_tree)),
+                )
+            })
             .collect()
     }
 
     fn calc_stability(&self, cluster_id: usize, condensed_tree: &CondensedTree<T>) -> T {
-        let lambda_birth = self.extract_lambda_birth(cluster_id, &condensed_tree);
-        condensed_tree.iter()
+        let lambda_birth = self.extract_lambda_birth(cluster_id, condensed_tree);
+        condensed_tree
+            .iter()
             .filter(|node| node.parent_node_id == cluster_id)
             .map(|node| (node.lambda_birth - lambda_birth) * T::from(node.size).unwrap_or(T::one()))
             .fold(T::zero(), std::ops::Add::add)
@@ -583,7 +618,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         if self.is_top_cluster(&cluster_id) {
             T::zero()
         } else {
-            condensed_tree.iter()
+            condensed_tree
+                .iter()
                 .find(|node| node.node_id == cluster_id)
                 .map(|node| node.lambda_birth)
                 .unwrap_or(T::zero())
@@ -597,43 +633,44 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn get_immediate_child_clusters<'b>(
         &'b self,
         cluster_id: usize,
-        condensed_tree: &'b CondensedTree<T>
+        condensed_tree: &'b CondensedTree<T>,
     ) -> Vec<&CondensedNode<T>> {
-        condensed_tree.iter()
+        condensed_tree
+            .iter()
             .filter(|node| node.parent_node_id == cluster_id)
             .filter(|node| self.is_cluster(&node.node_id))
             .collect()
     }
 
     fn is_cluster_too_big(&self, cluster_id: &usize, condensed_tree: &CondensedTree<T>) -> bool {
-        self.get_cluster_size(cluster_id, &condensed_tree) > self.hp.max_cluster_size
+        self.get_cluster_size(cluster_id, condensed_tree) > self.hp.max_cluster_size
     }
 
     fn get_cluster_size(&self, cluster_id: &usize, condensed_tree: &CondensedTree<T>) -> usize {
         if self.hp.allow_single_cluster && self.is_top_cluster(cluster_id) {
-            condensed_tree.iter()
+            condensed_tree
+                .iter()
                 .filter(|node| self.is_cluster(&node.node_id))
                 .filter(|node| &node.parent_node_id == cluster_id)
                 .map(|node| node.size)
                 .sum()
-
         } else {
             // All other clusters are in the tree with sizes
-            condensed_tree.iter()
+            condensed_tree
+                .iter()
                 .find(|node| &node.node_id == cluster_id)
                 .map(|node| node.size)
-                .unwrap_or(1usize)  // The cluster has to be in the tree
+                .unwrap_or(1usize) // The cluster has to be in the tree
         }
     }
 
     fn find_child_clusters(
         &self,
         root_node_id: &usize,
-        condensed_tree: &CondensedTree<T>
+        condensed_tree: &CondensedTree<T>,
     ) -> Vec<usize> {
-
         let mut process_queue = VecDeque::from([root_node_id]);
-        let mut child_clusters= Vec::new();
+        let mut child_clusters = Vec::new();
 
         while !process_queue.is_empty() {
             let current_node_id = match process_queue.pop_front() {
@@ -657,30 +694,28 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn check_cluster_epsilons(
         &self,
         winning_clusters: Vec<usize>,
-        condensed_tree: &CondensedTree<T>
+        condensed_tree: &CondensedTree<T>,
     ) -> Vec<usize> {
-
         let epsilon = T::from(self.hp.epsilon).expect("Couldn't convert f64 epsilon to T");
         let mut processed: Vec<usize> = Vec::new();
         let mut winning_epsilon_clusters = Vec::new();
 
         for cluster_id in winning_clusters.iter() {
-            let cluster_epsilon = self.calc_cluster_epsilon(*cluster_id, &condensed_tree, epsilon);
-            
+            let cluster_epsilon = self.calc_cluster_epsilon(*cluster_id, condensed_tree, epsilon);
+
             if cluster_epsilon < epsilon {
-                if processed.contains(&cluster_id) {
+                if processed.contains(cluster_id) {
                     continue;
                 }
-                let winning_cluster_id = self
-                    .find_higher_node_sufficient_epsilon(*cluster_id, &condensed_tree, epsilon);
+                let winning_cluster_id =
+                    self.find_higher_node_sufficient_epsilon(*cluster_id, condensed_tree, epsilon);
                 winning_epsilon_clusters.push(winning_cluster_id);
-                
-                for sub_node in self.find_child_clusters(&winning_cluster_id, &condensed_tree) {
+
+                for sub_node in self.find_child_clusters(&winning_cluster_id, condensed_tree) {
                     if sub_node != winning_cluster_id {
                         processed.push(sub_node)
                     }
                 }
-
             } else {
                 winning_epsilon_clusters.push(*cluster_id);
             }
@@ -692,13 +727,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         starting_cluster_id: usize,
         condensed_tree: &CondensedTree<T>,
-        epsilon: T
+        epsilon: T,
     ) -> usize {
-        
         let mut current_id = starting_cluster_id;
         let winning_cluster_id;
         loop {
-            let parent_id = condensed_tree.iter()
+            let parent_id = condensed_tree
+                .iter()
                 .find(|node| node.node_id == current_id)
                 .map(|node| node.parent_node_id)
                 .expect("Couldn't find node");
@@ -711,7 +746,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 break;
             }
 
-            let parent_epsilon = self.calc_cluster_epsilon(parent_id, &condensed_tree, epsilon);
+            let parent_epsilon = self.calc_cluster_epsilon(parent_id, condensed_tree, epsilon);
             if parent_epsilon > epsilon {
                 winning_cluster_id = parent_id;
                 break;
@@ -721,15 +756,15 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
         winning_cluster_id
     }
-    
+
     fn calc_cluster_epsilon(
-        &self, 
-        cluster_id: usize, 
-        condensed_tree: &CondensedTree<T>, 
-        epsilon: T
+        &self,
+        cluster_id: usize,
+        condensed_tree: &CondensedTree<T>,
+        epsilon: T,
     ) -> T {
-        
-        let cluster_lambda = condensed_tree.iter()
+        let cluster_lambda = condensed_tree
+            .iter()
             .find(|node| node.node_id == cluster_id)
             .map(|node| node.lambda_birth);
         match cluster_lambda {
@@ -741,19 +776,17 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
     fn label_data(
         &self,
-        winning_clusters: &Vec<usize>,
-        condensed_tree: &CondensedTree<T>
+        winning_clusters: &[usize],
+        condensed_tree: &CondensedTree<T>,
     ) -> Vec<i32> {
-
         // Assume all data points are noise by default then label the ones in clusters
-        let mut current_cluster_id = 0;
         let mut labels = vec![-1; self.n_samples];
 
-        for cluster_id in winning_clusters {
-            let node_size = self.get_cluster_size(cluster_id, &condensed_tree);
-            self.find_child_samples(*cluster_id, node_size, &condensed_tree).into_iter()
-                .for_each(|id| labels[id] = current_cluster_id);
-            current_cluster_id += 1;
+        for (current_cluster_id, cluster_id) in winning_clusters.iter().enumerate() {
+            let node_size = self.get_cluster_size(cluster_id, condensed_tree);
+            self.find_child_samples(*cluster_id, node_size, condensed_tree)
+                .into_iter()
+                .for_each(|id| labels[id] = current_cluster_id as i32);
         }
         labels
     }
@@ -762,9 +795,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         root_node_id: usize,
         node_size: usize,
-        condensed_tree: &CondensedTree<T>
+        condensed_tree: &CondensedTree<T>,
     ) -> Vec<usize> {
-
         let mut process_queue = VecDeque::from([root_node_id]);
         let mut child_nodes = Vec::with_capacity(node_size);
 
@@ -776,12 +808,10 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             for node in condensed_tree {
                 if node.parent_node_id == current_node_id {
                     if self.is_individual_sample(&node.node_id) {
-                        if self.hp.allow_single_cluster
-                            && self.is_top_cluster(&current_node_id) {
+                        if self.hp.allow_single_cluster && self.is_top_cluster(&current_node_id) {
                             continue;
                         }
                         child_nodes.push(node.node_id);
-
                     } else {
                         // Else it is a cluster not an individual data point
                         // so need to find its children
@@ -796,8 +826,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn cluster() {
@@ -857,11 +887,7 @@ mod tests {
 
     #[test]
     fn mismatched_dimensions() {
-        let data: Vec<Vec<f32>> = vec![
-            vec![1.5, 2.2],
-            vec![1.0, 1.1],
-            vec![1.2],
-        ];
+        let data: Vec<Vec<f32>> = vec![vec![1.5, 2.2], vec![1.0, 1.1], vec![1.2]];
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::WrongDimension(..))));

@@ -5,16 +5,19 @@ pub(crate) struct UnionFind {
 }
 
 impl UnionFind {
-
     pub(crate) fn new(n_samples: usize) -> Self {
         let length = 2 * n_samples - 1;
         let parent = vec![length; length];
         let next_label = n_samples;
-        let size = (0..length).into_iter()
+        let size = (0..length)
             .map(|n| if n < n_samples { 1 } else { 0 })
             .collect();
 
-        UnionFind { parent, next_label, size }
+        UnionFind {
+            parent,
+            next_label,
+            size,
+        }
     }
 
     pub(crate) fn union(&mut self, m: usize, n: usize) {

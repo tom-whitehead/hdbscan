@@ -1,5 +1,5 @@
-use num_traits::Float;
 use crate::{distance, DistanceMetric};
+use num_traits::Float;
 
 /// The nearest neighbour algorithm options
 #[derive(Debug, Clone, PartialEq)]
@@ -9,31 +9,32 @@ pub enum NnAlgorithm {
     Auto,
     /// Computes a distance matrix between each point and all others
     BruteForce,
-    /// K-dimensional tree algorithm. 
+    /// K-dimensional tree algorithm.
     KdTree,
 }
 
 pub(crate) trait CoreDistance {
     fn calc_core_distances<T: Float>(
-        data: &Vec<Vec<T>>, k: usize, dist_metric: DistanceMetric) -> Vec<T>;
+        data: &[Vec<T>],
+        k: usize,
+        dist_metric: DistanceMetric,
+    ) -> Vec<T>;
 }
 
 pub(crate) struct BruteForce;
 
 impl CoreDistance for BruteForce {
     fn calc_core_distances<T: Float>(
-        data: &Vec<Vec<T>>, 
-        k: usize, 
-        dist_metric: DistanceMetric
+        data: &[Vec<T>],
+        k: usize,
+        dist_metric: DistanceMetric,
     ) -> Vec<T> {
-        
         let n_samples = data.len();
-        let dist_matrix = calc_pairwise_distances(&data, distance::get_dist_func(&dist_metric));
+        let dist_matrix = calc_pairwise_distances(data, distance::get_dist_func(&dist_metric));
         let mut core_distances = Vec::with_capacity(n_samples);
 
-        for i in 0..n_samples {
-            let mut distances = dist_matrix[i].to_owned();
-            distances.sort_by(|a, b| a.partial_cmp(&b).expect("Invalid float"));
+        for mut distances in dist_matrix.into_iter().take(n_samples) {
+            distances.sort_by(|a, b| a.partial_cmp(b).expect("Invalid float"));
             core_distances.push(distances[k - 1]);
         }
 
@@ -41,10 +42,10 @@ impl CoreDistance for BruteForce {
     }
 }
 
-fn calc_pairwise_distances<T, F>(data: &Vec<Vec<T>>, dist_func: F) -> Vec<Vec<T>>
+fn calc_pairwise_distances<T, F>(data: &[Vec<T>], dist_func: F) -> Vec<Vec<T>>
 where
     T: Float,
-    F: Fn(&[T], &[T]) -> T
+    F: Fn(&[T], &[T]) -> T,
 {
     let n_samples = data.len();
     let mut dist_matrix = vec![vec![T::nan(); n_samples]; n_samples];
@@ -63,21 +64,23 @@ pub(crate) struct KdTree;
 
 impl CoreDistance for KdTree {
     fn calc_core_distances<T: Float>(
-        data: &Vec<Vec<T>>,
+        data: &[Vec<T>],
         k: usize,
-        dist_metric: DistanceMetric
+        dist_metric: DistanceMetric,
     ) -> Vec<T> {
-        
         let mut tree: kdtree::KdTree<T, usize, &Vec<T>> = kdtree::KdTree::new(data[0].len());
-        data.iter().enumerate()
+        data.iter()
+            .enumerate()
             .for_each(|(n, datapoint)| tree.add(datapoint, n).expect("Failed to add to KdTree"));
 
         let dist_func = distance::get_dist_func(&dist_metric);
         data.iter()
             .map(|datapoint| {
-                let result = tree.nearest(datapoint, k, &dist_func)
+                let result = tree
+                    .nearest(datapoint, k, &dist_func)
                     .expect("Failed to find neighbours");
-                result.into_iter()
+                result
+                    .into_iter()
                     .map(|(dist, _idx)| dist)
                     .last()
                     .expect("Failed to find neighbours")
