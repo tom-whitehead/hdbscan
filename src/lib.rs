@@ -918,4 +918,58 @@ mod tests {
             vec![10.0, 10.0],
         ]
     }
+
+    #[test]
+    fn test_nyc_landmarks_haversine() {
+        let data = vec![
+            // Cluster 1: Statue of Liberty area
+            vec![40.6892, -74.0445], // Statue of Liberty
+            vec![40.7036, -74.0141], // Battery Park
+            vec![40.7033, -74.0170], // Staten Island Ferry Terminal
+            // Cluster 2: Central Park area
+            vec![40.7812, -73.9665], // Metropolitan Museum of Art
+            vec![40.7794, -73.9632], // Guggenheim Museum
+            vec![40.7729, -73.9734], // Central Park Zoo
+            // Cluster 3: Times Square area
+            vec![40.7580, -73.9855], // Times Square
+            vec![40.7614, -73.9776], // Rockefeller Center
+            vec![40.7505, -73.9934], // Madison Square Garden
+            // Outlier
+            vec![40.6413, -74.0781], // Staten Island Mall (should be noise)
+        ];
+
+        let hyper_params = HdbscanHyperParams::builder()
+            .min_cluster_size(2)
+            .min_samples(1)
+            .dist_metric(DistanceMetric::Haversine)
+            // 500m to consider separate cluster
+            .epsilon(500.0)
+            .nn_algorithm(NnAlgorithm::BruteForce)
+            .build();
+
+        let clusterer = Hdbscan::new(&data, hyper_params);
+        let result = clusterer.cluster().unwrap();
+
+        // Check that we have 3 clusters and 1 noise point
+        let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();
+        assert_eq!(unique_clusters.len(), 3, "Should have 3 distinct clusters");
+        assert_eq!(
+            result.iter().filter(|&&x| x == -1).count(),
+            1,
+            "Should have 1 noise point"
+        );
+
+        // Check that points in each area are in the same cluster
+        assert_eq!(result[0], result[1]);
+        assert_eq!(result[1], result[2]);
+
+        assert_eq!(result[3], result[4]);
+        assert_eq!(result[4], result[5]);
+
+        assert_eq!(result[6], result[7]);
+        assert_eq!(result[7], result[8]);
+
+        // Check that the last point is noise
+        assert_eq!(result[9], -1);
+    }
 }
