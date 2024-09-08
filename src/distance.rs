@@ -12,23 +12,23 @@ pub enum DistanceMetric {
 impl DistanceMetric {
     pub(crate) fn calc_dist<T: Float>(&self, a: &[T], b: &[T]) -> T {
         match *self {
-            Self::Euclidean => { euclidean_distance(a, b) }
-            Self::Manhattan => { manhattan_distance(a, b) }
-            Self::Chebyshev => { chebyshev_distance(a, b) }
+            Self::Euclidean => euclidean_distance(a, b),
+            Self::Manhattan => manhattan_distance(a, b),
+            Self::Chebyshev => chebyshev_distance(a, b),
         }
     }
 }
 
-pub(crate) fn get_dist_func<'a, T: Float>(metric: &DistanceMetric) -> impl Fn(&[T], &[T]) -> T {
+pub(crate) fn get_dist_func<T: Float>(metric: &DistanceMetric) -> impl Fn(&[T], &[T]) -> T {
     match metric {
-        DistanceMetric::Euclidean => { euclidean_distance }
-        DistanceMetric::Manhattan => { manhattan_distance }
-        DistanceMetric::Chebyshev => { chebyshev_distance }
+        DistanceMetric::Euclidean => euclidean_distance,
+        DistanceMetric::Manhattan => manhattan_distance,
+        DistanceMetric::Chebyshev => chebyshev_distance,
     }
 }
 
 pub(crate) fn euclidean_distance<T: Float>(a: &[T], b: &[T]) -> T {
-    assert_inputs(&a, &b);
+    assert_inputs(a, b);
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)) * ((*x) - (*y)))
@@ -37,7 +37,7 @@ pub(crate) fn euclidean_distance<T: Float>(a: &[T], b: &[T]) -> T {
 }
 
 pub(crate) fn manhattan_distance<T: Float>(a: &[T], b: &[T]) -> T {
-    assert_inputs(&a, &b);
+    assert_inputs(a, b);
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)).abs())
@@ -45,7 +45,7 @@ pub(crate) fn manhattan_distance<T: Float>(a: &[T], b: &[T]) -> T {
 }
 
 pub(crate) fn chebyshev_distance<T: Float>(a: &[T], b: &[T]) -> T {
-    assert_inputs(&a, &b);
+    assert_inputs(a, b);
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)).abs())
