@@ -238,7 +238,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///];
     ///let clusterer = Hdbscan::default(&data);
     ///let labels = clusterer.cluster().unwrap();
-    ///let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+    ///let cluster_centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+    ///let centroids: Vec<Vec<f32>> = cluster_centroids.into_iter().map(|(_label, centroids)| centroids).collect();
     ///assert_eq!(2, centroids.len());
     ///assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
     /// ```
