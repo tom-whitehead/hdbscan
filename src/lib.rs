@@ -52,6 +52,7 @@
 use crate::core_distances::{BruteForce, CoreDistance, KdTree};
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
+use centers::ClusterCentroids;
 use num_traits::Float;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -245,7 +246,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         center: Center,
         labels: &[i32],
-    ) -> Result<Vec<Vec<T>>, HdbscanError> {
+    ) -> Result<ClusterCentroids<T>, HdbscanError> {
         assert_eq!(labels.len(), self.data.len());
         Ok(center.calc_centers(self.data, labels))
     }
@@ -898,7 +899,11 @@ mod tests {
         let data = cluster_test_data();
         let clusterer = Hdbscan::default(&data);
         let labels = clusterer.cluster().unwrap();
-        let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+        let cluster_centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
+        let centroids: Vec<Vec<f32>> = cluster_centroids
+            .into_iter()
+            .map(|(_label, centroid)| centroid)
+            .collect();
         assert_eq!(2, centroids.len());
         assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
     }

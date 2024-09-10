@@ -8,14 +8,20 @@ pub enum Center {
     Centroid,
 }
 
+pub type ClusterCentroids<T> = Vec<(i32, Vec<T>)>;
+
 impl Center {
-    pub(crate) fn calc_centers<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
+    pub(crate) fn calc_centers<T: Float>(
+        &self,
+        data: &[Vec<T>],
+        labels: &[i32],
+    ) -> ClusterCentroids<T> {
         match self {
             Center::Centroid => self.calc_centroids(data, labels),
         }
     }
 
-    fn calc_centroids<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
+    fn calc_centroids<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> ClusterCentroids<T> {
         // All points weighted equally
         let weights = vec![T::one(); data.len()];
         Center::calc_weighted_centroids(data, labels, &weights)
@@ -25,32 +31,26 @@ impl Center {
         data: &[Vec<T>],
         labels: &[i32],
         weights: &[T],
-    ) -> Vec<Vec<T>> {
+    ) -> ClusterCentroids<T> {
         let n_dims = data[0].len();
-        let n_clusters = labels
-            .iter()
-            .filter(|&&label| label != -1)
-            .collect::<HashSet<_>>()
-            .len();
+        let unique_labels: HashSet<_> = labels.iter().filter(|&&label| label != -1).collect();
 
-        let mut centroids = Vec::with_capacity(n_clusters);
-        for cluster_id in 0..n_clusters as i32 {
+        let mut centroids = Vec::with_capacity(unique_labels.len());
+        for &cluster_id in unique_labels.iter() {
             let mut count = T::zero();
-            let mut element_wise_mean = vec![T::zero(); n_dims];
+            let mut element_wise_sum = vec![T::zero(); n_dims];
             for n in 0..data.len() {
-                if cluster_id == labels[n] {
-                    count = count + T::one();
-                    element_wise_mean = data[n]
+                if *cluster_id == labels[n] {
+                    count = count + weights[n];
+                    element_wise_sum = data[n]
                         .iter()
-                        .zip(element_wise_mean.iter())
+                        .zip(element_wise_sum.iter())
                         .map(|(&element, &sum)| (element * weights[n]) + sum)
                         .collect();
                 }
             }
-            for element in element_wise_mean.iter_mut() {
-                *element = *element / count;
-            }
-            centroids.push(element_wise_mean);
+            let centroid = element_wise_sum.iter().map(|&sum| sum / count).collect();
+            centroids.push((*cluster_id, centroid));
         }
         centroids
     }
