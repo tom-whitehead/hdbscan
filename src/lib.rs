@@ -55,6 +55,7 @@ use crate::union_find::UnionFind;
 use num_traits::Float;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::f64::consts::PI;
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
@@ -263,11 +264,70 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                     )));
                 }
             }
-
             let dims_nth = datapoint.len();
             if dims_nth != dims_0th {
                 return Err(HdbscanError::WrongDimension(format!(
                     "Oth data point has {dims_0th} dimensions, but {n}th has {dims_nth}"
+                )));
+            }
+        }
+        if self.hp.dist_metric == DistanceMetric::Cylindrical {
+            self.validate_cylindrical_coords()?
+        }
+        if self.hp.dist_metric == DistanceMetric::Haversine {
+            self.validate_geographical_coords()?
+        }
+
+        Ok(())
+    }
+
+    fn validate_cylindrical_coords(&self) -> Result<(), HdbscanError> {
+        let n_dim = self.data[0].len();
+        if n_dim != 3 {
+            return Err(HdbscanError::WrongDimension(format!(
+                "Cylindrical coordinates should have three dimensions (ρ, φ, z), not {n_dim}"
+            )))
+        }
+        for datapoint in self.data {
+            let (dim1, dim2, dim3) = (datapoint[0], datapoint[1], datapoint[2]);
+            if dim1 < T::zero() || dim1 > T::one() {
+                return Err(HdbscanError::WrongDimension(String::from(
+                    "Dimension 1 of cylindrical coordinates should be a percent in range 0 to 1"
+                )));
+            }
+            if dim2 < T::zero() || dim2 > T::from(PI * 2.0).unwrap() {
+                return Err(HdbscanError::WrongDimension(String::from(
+                    "Dimension 2 of cylindrical coordinates should be a radian in range 0 to 2π"
+                )));
+            }
+            if dim3 < T::zero() || dim3 > T::one() {
+                return Err(HdbscanError::WrongDimension(String::from(
+                    "Dimension 3 of cylindrical coordinates should be a percent in range 0 to 1"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_geographical_coords(&self) -> Result<(), HdbscanError> {
+        let n_dim = self.data[0].len();
+        if n_dim != 2 {
+            return Err(HdbscanError::WrongDimension(format!(
+                "Geographical coordinates should have two dimensions (lat, lon), not {n_dim}"
+            )))
+        }
+        for datapoint in self.data {
+            let (lat, lon) = (datapoint[0], datapoint[1]);
+            if lat < T::from(-90.0).unwrap() || lat > T::from(90.0).unwrap() {
+                return Err(HdbscanError::WrongDimension(String::from(
+                    "Dimension 1 of geographical coordinates used in with Haversine distance \
+                    should be a latitude in range -90 to 90"
+                )));
+            }
+            if lon < T::from(-180.0).unwrap() || lon > T::from(180.0).unwrap() {
+                return Err(HdbscanError::WrongDimension(String::from(
+                    "Dimension 2 of geographical coordinates used in with Haversine distance \
+                    should be a longitude in range -180 to 180"
                 )));
             }
         }
@@ -844,7 +904,7 @@ mod tests {
 
     #[test]
     fn builder_cluster() {
-        let data: Vec<Vec<f32>> = vec![
+        let data = vec![
             vec![1.3, 1.1],
             vec![1.3, 1.2],
             vec![1.2, 1.2],
@@ -879,7 +939,7 @@ mod tests {
 
     #[test]
     fn non_finite_coordinate() {
-        let data: Vec<Vec<f32>> = vec![vec![1.5, f32::infinity()]];
+        let data = vec![vec![1.5, f32::infinity()]];
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::NonFiniteCoordinate(..))));
@@ -887,7 +947,7 @@ mod tests {
 
     #[test]
     fn mismatched_dimensions() {
-        let data: Vec<Vec<f32>> = vec![vec![1.5, 2.2], vec![1.0, 1.1], vec![1.2]];
+        let data = vec![vec![1.5, 2.2], vec![1.0, 1.1], vec![1.2]];
         let clusterer = Hdbscan::default(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::WrongDimension(..))));
@@ -971,5 +1031,39 @@ mod tests {
 
         // Check that the last point is noise
         assert_eq!(result[9], -1);
+    }
+
+    #[test]
+    fn test_cylindrical_hsv_colours() {
+        // HSV colours re-ordered to SHV
+       let data = vec![
+           // Blues
+           vec![0.91, 3.80482, 0.62],
+           vec![0.96, 4.13643, 0.86],
+           vec![0.95, 3.56047, 0.85],
+           // Greens
+           vec![0.74, 1.91986, 0.39],
+           vec![0.90, 1.69297, 0.82],
+           vec![0.84, 2.14675, 0.72],
+           // Red
+           vec![0.60, 6.2657, 0.00],
+       ];
+
+        let hyper_params = HdbscanHyperParams::builder()
+            .dist_metric(DistanceMetric::Cylindrical)
+            .nn_algorithm(NnAlgorithm::BruteForce)
+            .min_cluster_size(3)
+            .min_samples(1)
+            .build();
+
+        let clusterer = Hdbscan::new(&data, hyper_params);
+        let result = clusterer.cluster().unwrap();
+
+        // Blues all form one cluster
+        assert_eq!(1, result[..3].iter().collect::<HashSet<_>>().len());
+        // Greens are a second cluster
+        assert_eq!(1, result[3..6].iter().collect::<HashSet<_>>().len());
+        // The final red point is noise
+        assert_eq!(-1, result[6]);
     }
 }
