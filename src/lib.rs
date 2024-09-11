@@ -55,6 +55,7 @@ use crate::union_find::UnionFind;
 use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
+use std::ops::AddAssign;
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
@@ -82,7 +83,7 @@ pub struct Hdbscan<'a, T> {
     hp: HdbscanHyperParams,
 }
 
-impl<'a, T: Float> Hdbscan<'a, T> {
+impl<'a, T: Float + AddAssign> Hdbscan<'a, T> {
     /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
     /// configuration.
     ///
