@@ -8,8 +8,8 @@ pub enum DistanceMetric {
     /// Also known as L-infinity norm.
     Chebyshev,
     /// The distance between points in a cylindrical coordinate system where the input data is
-    /// three-dimensional in the form (ρ , φ , z), or (radial distance, angular coordinate, height). 
-    /// Degrees should be in radians and distances percents. If you're using HSV or HSL colour 
+    /// three-dimensional in the form (ρ , φ , z), or (radial distance, angular coordinate, height).
+    /// Degrees should be in radians and distances percents. If you're using HSV or HSL colour
     /// systems, the coordinates will need to be re-ordered to SHV or SHL, respectively.
     Cylindrical,
     /// The length of the line between two points. Also known as L2 norm.
@@ -95,7 +95,11 @@ pub(crate) fn chebyshev_distance<T: Float>(a: &[T], b: &[T]) -> T {
 
 pub(crate) fn cylindrical_distance<T: Float>(a: &[T], b: &[T]) -> T {
     assert_inputs(a, b);
-    assert_eq!(a.len(), 3, "Cylindrical coordinates must have three dimensions (ρ, φ, z)");
+    assert_eq!(
+        a.len(),
+        3,
+        "Cylindrical coordinates must have three dimensions (ρ, φ, z)"
+    );
 
     let (r1, theta1, z1) = (a[0], a[1], a[2]);
     let (r2, theta2, z2) = (b[0], b[1], b[2]);
@@ -108,6 +112,10 @@ pub(crate) fn cylindrical_distance<T: Float>(a: &[T], b: &[T]) -> T {
 }
 
 fn assert_inputs<T: Float>(a: &[T], b: &[T]) {
-    assert_eq!(a.len(), b.len(), "Two vectors need to have the same dimensions");
+    assert_eq!(
+        a.len(),
+        b.len(),
+        "Two vectors need to have the same dimensions"
+    );
     assert!(!a.is_empty(), "The vectors cannot be empty");
 }
