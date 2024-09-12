@@ -1,3 +1,9 @@
+# Version 0.8.0 2024-09-12
+## Changes
+- Two new distance metrics - Haversine distance for clustering geographical data on the Earth's surface and Cylindrical
+  distance for clustering cylindrical coordinates like HSV colours.
+- General refactoring.
+
 # Version 0.7.0 2024-08-15
 ## Changes
 - Added the `epsilon` hyper parameter.  In HDBSCAN, each cluster has an epsilon value, which is the distance threshold 
