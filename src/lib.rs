@@ -619,7 +619,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                     .for_each(|node_id| {
                         let is_child_selected = clusters.get(node_id);
                         if let Some(true) = is_child_selected {
-                            clusters.insert(node_id.clone(), false);
+                            clusters.insert(*node_id, false);
                         }
                     });
             } else {
