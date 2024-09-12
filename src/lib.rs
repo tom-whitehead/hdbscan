@@ -53,8 +53,7 @@ use crate::core_distances::{BruteForce, CoreDistance, KdTree};
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
 use num_traits::Float;
-use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
 
 pub use crate::centers::Center;
@@ -214,7 +213,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// * `labels` - a reference to the labels calculated by a call to `Hdbscan::cluster`.
     ///
     /// # Returns
-    /// * A vector of the cluster centers, of shape num clusters by num dimensions/features.
+    /// * A vector of the cluster centers, of shape num clusters by num dimensions/features. The
+    ///   index of the centroid is the cluster label. For example, the centroid cluster of label 0
+    ///   will be the first centroid in the vector of centroids.
     ///
     /// # Panics
     /// * If the labels are of different length to the data passed to the `Hdbscan` constructor
@@ -339,7 +340,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
         match (&self.hp.nn_algo, self.n_samples) {
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
-                KdTree::calc_core_distances(data, k, dist_metric)
+                BruteForce::calc_core_distances(data, k, dist_metric)
             }
             (NnAlgorithm::Auto, _) => KdTree::calc_core_distances(data, k, dist_metric),
             (NnAlgorithm::BruteForce, _) => BruteForce::calc_core_distances(data, k, dist_metric),
@@ -592,46 +593,37 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
-        let n_clusters = condensed_tree.len() - self.n_samples + 1;
-        let stabilities = self.calc_all_stabilities(n_clusters, condensed_tree);
+        let n_clusters = self.calc_num_clusters(condensed_tree);
+        let mut stabilities = self.calc_all_stabilities(n_clusters, condensed_tree);
         let mut clusters: HashMap<usize, bool> =
             stabilities.keys().map(|id| (*id, false)).collect();
 
-        for (cluster_id, stability) in stabilities.iter().rev() {
+        for cluster_id in ((self.n_samples + 1)..(n_clusters + self.n_samples + 1)).rev() {
+            let stability = stabilities
+                .get(&cluster_id)
+                .expect("Couldn't retrieve stability");
             let combined_child_stability = self
-                .get_immediate_child_clusters(*cluster_id, condensed_tree)
+                .get_immediate_child_clusters(cluster_id, condensed_tree)
                 .iter()
-                .map(|node| {
-                    *stabilities
-                        .get(&node.node_id)
-                        .unwrap_or(&RefCell::new(T::zero()))
-                        .borrow()
-                })
+                .map(|node| *stabilities.get(&node.node_id).unwrap_or(&T::zero()))
                 .fold(T::zero(), std::ops::Add::add);
 
-            if *stability.borrow() > combined_child_stability
-                && !self.is_cluster_too_big(cluster_id, condensed_tree)
+            if stability > &combined_child_stability
+                && !self.is_cluster_too_big(&cluster_id, condensed_tree)
             {
-                *clusters
-                    .get_mut(cluster_id)
-                    .expect("Couldn't retrieve stability") = true;
+                clusters.insert(cluster_id, true);
 
                 // If child clusters were already marked as winning clusters reverse
-                self.find_child_clusters(cluster_id, condensed_tree)
+                self.find_child_clusters(&cluster_id, condensed_tree)
                     .iter()
                     .for_each(|node_id| {
                         let is_child_selected = clusters.get(node_id);
                         if let Some(true) = is_child_selected {
-                            *clusters
-                                .get_mut(node_id)
-                                .expect("Couldn't retrieve stability") = false;
+                            clusters.insert(*node_id, false);
                         }
                     });
             } else {
-                stabilities
-                    .get(cluster_id)
-                    .expect("Couldn't retrieve stability")
-                    .replace(combined_child_stability);
+                stabilities.insert(cluster_id, combined_child_stability);
             }
         }
 
@@ -648,20 +640,21 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         selected_cluster_ids
     }
 
+    fn calc_num_clusters(&self, condensed_tree: &CondensedTree<T>) -> usize {
+        if self.hp.allow_single_cluster {
+            condensed_tree.len() - self.n_samples + 1
+        } else {
+            condensed_tree.len() - self.n_samples
+        }
+    }
+
     fn calc_all_stabilities(
         &self,
         n_clusters: usize,
         condensed_tree: &CondensedTree<T>,
-    ) -> BTreeMap<usize, RefCell<T>> {
-        (0..n_clusters)
-            .filter(|&n| (self.hp.allow_single_cluster || n != 0))
-            .map(|n| self.n_samples + n)
-            .map(|cluster_id| {
-                (
-                    cluster_id,
-                    RefCell::new(self.calc_stability(cluster_id, condensed_tree)),
-                )
-            })
+    ) -> HashMap<usize, T> {
+        ((self.n_samples + 1)..(n_clusters + self.n_samples + 1))
+            .map(|cluster_id| (cluster_id, self.calc_stability(cluster_id, condensed_tree)))
             .collect()
     }
 
