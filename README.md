@@ -1,4 +1,10 @@
-# Hierarchical Density-Based Spatial Clustering of Applications with Noise ("HDBSCAN")
+# HDBSCAN
+[![crates.io](https://img.shields.io/crates/v/hdbscan)](https://crates.io/crates/hdbscan)
+[![Crates.io Total Downloads](https://img.shields.io/crates/d/hdbscan?color=%23F48041)](https://crates.io/crates/hdbscan)
+[![Documentation](https://docs.rs/hdbscan/badge.svg)](https://docs.rs/hdbscan)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/tom-whitehead/hdbscan/rust.yml?logo=github)](https://github.com/tom-whitehead/hdbscan/actions/workflows/rust.yml)
+
+> Hierarchical Density-Based Spatial Clustering of Applications with Noise ("HDBSCAN")
 
 HDBSCAN clustering algorithm in pure Rust. Generic over floating point numeric types.
 
