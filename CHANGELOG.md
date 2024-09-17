@@ -1,3 +1,11 @@
+# Version 0.8.1 2024-09-18
+## Changes
+- Consistency in cluster labels between runs of the algorithm. If you ran clustering on the same data numerous times,
+  previously the same cluster would likely have had a different label each time. Now there is more stability in the 
+  labelling between runs.
+- Renamed the `default` constructor to `default_hyper_params` and deprecated the former. This is to avoid a name clash
+  with Rust's `Default` trait.
+
 # Version 0.8.0 2024-09-12
 ## Changes
 - Two new distance metrics - Haversine distance for clustering geographical data on the Earth's surface and Cylindrical
