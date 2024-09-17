@@ -52,7 +52,7 @@ let data: Vec<Vec<f32>> = vec![
     vec![4.0, 4.1],
     vec![10.0, 10.0],
 ];
-let clusterer = Hdbscan::default(&data);
+let clusterer = Hdbscan::default_hyper_params(&data);
 let labels = clusterer.cluster().unwrap();
 //First five points form one cluster
 assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());

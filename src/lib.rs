@@ -35,7 +35,7 @@
 //!    vec![4.0, 4.1],
 //!    vec![10.0, 10.0],
 //!];
-//!let clusterer = Hdbscan::default(&data);
+//!let clusterer = Hdbscan::default_hyper_params(&data);
 //!let labels = clusterer.cluster().unwrap();
 //!//First five points form one cluster
 //!assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
@@ -126,6 +126,15 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
     }
 
+    #[deprecated(
+        since = "0.8.1",
+        note = "Please use `default_hyper_params` constructor instead"
+    )]
+    pub fn default(data: &'a [Vec<T>]) -> Hdbscan<T> {
+        let hyper_params = HdbscanHyperParams::default();
+        Hdbscan::new(data, hyper_params)
+    }
+
     /// Creates an instance of HDBSCAN clustering model using the default hyper parameters.
     ///
     /// # Parameters
@@ -150,9 +159,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    vec![3.7, 4.0],
     ///    vec![3.9, 3.9],
     ///];
-    ///let clusterer = Hdbscan::default(&data);
+    ///let clusterer = Hdbscan::default_hyper_params(&data);
     /// ```
-    pub fn default(data: &'a [Vec<T>]) -> Hdbscan<T> {
+    pub fn default_hyper_params(data: &'a [Vec<T>]) -> Hdbscan<T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
     }
@@ -185,7 +194,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    vec![4.0, 4.1],
     ///    vec![10.0, 10.0],
     ///];
-    ///let clusterer = Hdbscan::default(&data);
+    ///let clusterer = Hdbscan::default_hyper_params(&data);
     ///let labels = clusterer.cluster().unwrap();
     /// //First five points form one cluster
     ///assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
@@ -237,7 +246,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///    vec![4.0, 4.1],
     ///    vec![10.0, 10.0],
     ///];
-    ///let clusterer = Hdbscan::default(&data);
+    ///let clusterer = Hdbscan::default_hyper_params(&data);
     ///let labels = clusterer.cluster().unwrap();
     ///let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
     ///assert_eq!(2, centroids.len());
@@ -885,7 +894,7 @@ mod tests {
     #[test]
     fn cluster() {
         let data = cluster_test_data();
-        let clusterer = Hdbscan::default(&data);
+        let clusterer = Hdbscan::default_hyper_params(&data);
         let result = clusterer.cluster().unwrap();
         // First five points form one cluster
         assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
@@ -925,7 +934,7 @@ mod tests {
     #[test]
     fn empty_data() {
         let data: Vec<Vec<f32>> = Vec::new();
-        let clusterer = Hdbscan::default(&data);
+        let clusterer = Hdbscan::default_hyper_params(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::EmptyDataset)));
     }
@@ -933,7 +942,7 @@ mod tests {
     #[test]
     fn non_finite_coordinate() {
         let data = vec![vec![1.5, f32::infinity()]];
-        let clusterer = Hdbscan::default(&data);
+        let clusterer = Hdbscan::default_hyper_params(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::NonFiniteCoordinate(..))));
     }
@@ -941,7 +950,7 @@ mod tests {
     #[test]
     fn mismatched_dimensions() {
         let data = vec![vec![1.5, 2.2], vec![1.0, 1.1], vec![1.2]];
-        let clusterer = Hdbscan::default(&data);
+        let clusterer = Hdbscan::default_hyper_params(&data);
         let result = clusterer.cluster();
         assert!(matches!(result, Err(HdbscanError::WrongDimension(..))));
     }
@@ -949,7 +958,7 @@ mod tests {
     #[test]
     fn calc_centers() {
         let data = cluster_test_data();
-        let clusterer = Hdbscan::default(&data);
+        let clusterer = Hdbscan::default_hyper_params(&data);
         let labels = clusterer.cluster().unwrap();
         let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
         assert_eq!(2, centroids.len());
