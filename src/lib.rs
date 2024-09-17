@@ -646,6 +646,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
         }
 
+        selected_cluster_ids.sort();
         selected_cluster_ids
     }
 
