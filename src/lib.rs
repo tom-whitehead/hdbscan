@@ -126,7 +126,10 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
     }
 
-    #[deprecated(since="0.8.1", note="Please use `default_hyper_params` constructor instead")]
+    #[deprecated(
+        since="0.8.1",
+        note="Please use `default_hyper_params` constructor instead"
+    )]
     pub fn default(data: &'a [Vec<T>]) -> Hdbscan<T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
