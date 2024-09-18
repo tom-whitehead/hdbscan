@@ -55,7 +55,6 @@ use crate::union_find::UnionFind;
 use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
-use std::ops::AddAssign;
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
@@ -83,7 +82,7 @@ pub struct Hdbscan<'a, T> {
     hp: HdbscanHyperParams,
 }
 
-impl<'a, T: Float + AddAssign> Hdbscan<'a, T> {
+impl<'a, T: Float> Hdbscan<'a, T> {
     /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
     /// configuration.
     ///
@@ -259,8 +258,7 @@ impl<'a, T: Float + AddAssign> Hdbscan<'a, T> {
         labels: &[i32],
     ) -> Result<Vec<Vec<T>>, HdbscanError> {
         assert_eq!(labels.len(), self.data.len());
-        if self.hp.dist_metric != DistanceMetric::Haversine && center == Center::GeoCenterOfGravity
-        {
+        if self.hp.dist_metric != DistanceMetric::Haversine && center == Center::GeoCentroid {
             // TODO: Implement a more appropriate error variant when doing a major version bump
             return Err(HdbscanError::WrongDimension(String::from(
                 "Geographical centroids can only be used with geographical coordinates.",

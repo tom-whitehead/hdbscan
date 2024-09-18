@@ -1,5 +1,5 @@
 use num_traits::Float;
-use std::{collections::HashSet, ops::AddAssign};
+use std::collections::HashSet;
 
 /// Possible methodologies for calculating the center of clusters
 #[derive(Debug, PartialEq)]
@@ -7,21 +7,17 @@ pub enum Center {
     /// The elementwise mean of all data points in a cluster.
     /// The output is not guaranteed to be an observed data point.
     Centroid,
-    /// Calculates the geographical center of gravity for lat/lon coordinates.
+    /// Calculates the geographical centeroid for lat/lon coordinates.
     /// Assumes input coordinates are in degrees (latitude, longitude).
     /// Output coordinates are also in degrees.
-    GeoCenterOfGravity,
+    GeoCentroid,
 }
 
 impl Center {
-    pub(crate) fn calc_centers<T: Float + AddAssign>(
-        &self,
-        data: &[Vec<T>],
-        labels: &[i32],
-    ) -> Vec<Vec<T>> {
+    pub(crate) fn calc_centers<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
         match self {
             Center::Centroid => self.calc_centroids(data, labels),
-            Center::GeoCenterOfGravity => self.centers_of_gravity(data, labels),
+            Center::GeoCentroid => self.calc_geo_centroids(data, labels),
         }
     }
 
@@ -65,7 +61,7 @@ impl Center {
         centroids
     }
 
-    /// Calculates the geographical center of gravity for each cluster.
+    /// Calculates the geographical centeroid for each cluster.
     ///
     /// This method is specifically designed for geographical data where each point
     /// is represented by latitude and longitude coordinates.
@@ -85,11 +81,7 @@ impl Center {
     /// - Output coordinates are in degrees.
     /// - Points with label -1 are considered noise and are ignored in calculations.
     /// - Uses a spherical approximation of the Earth for calculations.
-    fn centers_of_gravity<T: Float + AddAssign>(
-        &self,
-        data: &[Vec<T>],
-        labels: &[i32],
-    ) -> Vec<Vec<T>> {
+    fn calc_geo_centroids<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
         let n_clusters = labels
             .iter()
             .filter(|&&label| label != -1)
@@ -101,13 +93,13 @@ impl Center {
         for (point, &label) in data.iter().zip(labels.iter()) {
             if label != -1 {
                 let cluster_index = label as usize;
-                centers[cluster_index][0] += point[0].to_radians();
-                centers[cluster_index][1] += point[1].to_radians();
-                counts[cluster_index] += T::one();
+                centers[cluster_index][0] = centers[cluster_index][0] + point[0].to_radians();
+                centers[cluster_index][1] = centers[cluster_index][1] + point[1].to_radians();
+                counts[cluster_index] = counts[cluster_index] + T::one();
             }
         }
 
-        // Calculate final center of gravity for each cluster
+        // Calculate final geo centroid for each cluster
         for (center, &count) in centers.iter_mut().zip(counts.iter()) {
             if count > T::zero() {
                 let avg_lat = center[0] / count;
