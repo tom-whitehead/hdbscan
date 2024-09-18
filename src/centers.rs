@@ -2,6 +2,7 @@ use num_traits::Float;
 use std::{collections::HashSet, ops::AddAssign};
 
 /// Possible methodologies for calculating the center of clusters
+#[derive(Debug, PartialEq)]
 pub enum Center {
     /// The elementwise mean of all data points in a cluster.
     /// The output is not guaranteed to be an observed data point.

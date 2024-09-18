@@ -259,6 +259,14 @@ impl<'a, T: Float + AddAssign> Hdbscan<'a, T> {
         labels: &[i32],
     ) -> Result<Vec<Vec<T>>, HdbscanError> {
         assert_eq!(labels.len(), self.data.len());
+        if self.hp.dist_metric != DistanceMetric::Haversine
+            && center == Center::GeoCenterOfGravity
+        {
+            // TODO: Implement a more appropriate error variant when doing a major version bump
+            return Err(HdbscanError::WrongDimension(String::from(
+                "Geographical centroids can only be used with geographical coordinates."
+            )));
+        }
         Ok(center.calc_centers(self.data, labels))
     }
 
