@@ -1075,4 +1075,33 @@ mod tests {
         // The final red point is noise
         assert_eq!(-1, result[6]);
     }
+
+    #[test]
+    fn test_failing_haversine_cluster() {
+        let data = vec![
+            vec![25.948000303675823, -80.14385839372238],
+            vec![25.94805667998456, -80.145566657281],
+            vec![25.9458914986468, -80.16442455966394],
+            vec![26.0070633, -80.158535],
+        ];
+
+        let hyper_params = HdbscanHyperParams::builder()
+            .allow_single_cluster(true)
+            .min_cluster_size(2)
+            .min_samples(1)
+            .dist_metric(DistanceMetric::Haversine)
+            // 5000m to consider separate cluster
+            .epsilon(5000.0)
+            .nn_algorithm(NnAlgorithm::BruteForce)
+            .build();
+
+        let clusterer = Hdbscan::new(&data, hyper_params);
+        let result = clusterer.cluster().unwrap();
+
+        let noise_count = result.iter().filter(|&&x| x == -1).count();
+        println!("noise_count: {}", noise_count);
+
+        // Check that we only 1 noise point
+        assert_eq!(noise_count, 1, "Should have 1 noise point");
+    }
 }
