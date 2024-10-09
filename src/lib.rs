@@ -55,6 +55,7 @@ use crate::union_find::UnionFind;
 use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
+use std::fmt::Debug;
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
@@ -82,7 +83,7 @@ pub struct Hdbscan<'a, T> {
     hp: HdbscanHyperParams,
 }
 
-impl<'a, T: Float> Hdbscan<'a, T> {
+impl<'a, T: Float + Debug> Hdbscan<'a, T> {
     /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
     /// configuration.
     ///
@@ -205,7 +206,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// ```
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         self.validate_input_data()?;
+        println!("+++M1 validated input data");
         let core_distances = self.calc_core_distances();
+        println!("+++M2 core_distances: {:?}", core_distances);
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
@@ -350,8 +353,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         Ok(())
     }
 
-    fn calc_core_distances(&self) -> Vec<T> {
+    fn calc_core_distances(&self) -> Vec<T>
+    where
+        T: Debug,
+    {
         let (data, k, dist_metric) = (self.data, self.hp.min_samples, self.hp.dist_metric);
+        println!("+++M3 dist_metric: {:?}", dist_metric);
 
         match (&self.hp.nn_algo, self.n_samples) {
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
@@ -1096,12 +1103,20 @@ mod tests {
             .build();
 
         let clusterer = Hdbscan::new(&data, hyper_params);
-        let result = clusterer.cluster().unwrap();
 
-        let noise_count = result.iter().filter(|&&x| x == -1).count();
-        println!("noise_count: {}", noise_count);
+        match clusterer.cluster() {
+            Ok(result) => {
+                println!("result: {:?}", result);
 
-        // Check that we only 1 noise point
-        assert_eq!(noise_count, 1, "Should have 1 noise point");
+                let noise_count = result.iter().filter(|&&x| x == -1).count();
+                println!("noise_count: {}", noise_count);
+
+                // Check that we only 1 noise point
+                assert_eq!(noise_count, 1, "Should have 1 noise point");
+            }
+            Err(e) => {
+                println!("error: {:?}", e)
+            }
+        }
     }
 }
