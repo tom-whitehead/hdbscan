@@ -116,6 +116,10 @@ assert_eq!(2, centroids.len());
 assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
 ```
 
+# References
+
+[How HDSCAN Works](https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html). Leland McInnes, John Healy, Steve Astels.
+
 # License
 Dual-licensed to be compatible with the Rust project.
 
