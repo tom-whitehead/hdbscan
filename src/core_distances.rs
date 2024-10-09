@@ -1,5 +1,6 @@
 use crate::{distance, DistanceMetric};
 use num_traits::Float;
+use std::fmt::Debug;
 
 /// The nearest neighbour algorithm options
 #[derive(Debug, Clone, PartialEq)]
@@ -14,7 +15,7 @@ pub enum NnAlgorithm {
 }
 
 pub(crate) trait CoreDistance {
-    fn calc_core_distances<T: Float>(
+    fn calc_core_distances<T: Float + Debug>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,
@@ -24,19 +25,21 @@ pub(crate) trait CoreDistance {
 pub(crate) struct BruteForce;
 
 impl CoreDistance for BruteForce {
-    fn calc_core_distances<T: Float>(
+    fn calc_core_distances<T: Float + Debug>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,
     ) -> Vec<T> {
         let n_samples = data.len();
         let dist_matrix = calc_pairwise_distances(data, distance::get_dist_func(&dist_metric));
+        println!("+++M6 dist_matrix: {:?}", dist_matrix);
         let mut core_distances = Vec::with_capacity(n_samples);
 
         for mut distances in dist_matrix.into_iter().take(n_samples) {
             distances.sort_by(|a, b| a.partial_cmp(b).expect("Invalid float"));
             core_distances.push(distances[k - 1]);
         }
+        println!("+++M7 core_distances: {:?}", core_distances);
 
         core_distances
     }
