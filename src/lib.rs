@@ -907,16 +907,20 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
         child_nodes
     }
-    
+
     fn get_lambda_threshold(&self, root_node_id: usize, condensed_tree: &CondensedTree<T>) -> T {
         if self.hp.epsilon == 0.0 {
-            condensed_tree.iter()
+            condensed_tree
+                .iter()
                 .filter(|node| node.parent_node_id == root_node_id)
                 .map(|node| node.lambda_birth)
                 .fold(None, |max, lambda| match max {
                     None => Some(lambda),
-                    Some(max_lambda) =>
-                        Some(if lambda > max_lambda { lambda } else { max_lambda }),
+                    Some(max_lambda) => Some(if lambda > max_lambda {
+                        lambda
+                    } else {
+                        max_lambda
+                    }),
                 })
                 .expect("Could not find child nodes")
         } else {
