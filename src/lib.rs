@@ -212,7 +212,9 @@ impl<'a, T: Float + Debug> Hdbscan<'a, T> {
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
+        println!("+++M8 condensed_tree: {:#?}", condensed_tree);
         let winning_clusters = self.extract_winning_clusters(&condensed_tree);
+        println!("+++M9 winning_clusters: {:?}", winning_clusters);
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
         Ok(labelled_data)
     }
@@ -359,6 +361,8 @@ impl<'a, T: Float + Debug> Hdbscan<'a, T> {
     {
         let (data, k, dist_metric) = (self.data, self.hp.min_samples, self.hp.dist_metric);
         println!("+++M3 dist_metric: {:?}", dist_metric);
+        println!("+++M4 k: {:?}", k);
+        println!("+++M5 data: {:?}", k);
 
         match (&self.hp.nn_algo, self.n_samples) {
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
@@ -617,6 +621,7 @@ impl<'a, T: Float + Debug> Hdbscan<'a, T> {
     fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
         let n_clusters = self.calc_num_clusters(condensed_tree);
         let mut stabilities = self.calc_all_stabilities(n_clusters, condensed_tree);
+        println!("+++M10 stabilities: {:?}", stabilities);
         let mut clusters: HashMap<usize, bool> =
             stabilities.keys().map(|id| (*id, false)).collect();
 
@@ -683,6 +688,7 @@ impl<'a, T: Float + Debug> Hdbscan<'a, T> {
 
     fn calc_stability(&self, cluster_id: usize, condensed_tree: &CondensedTree<T>) -> T {
         let lambda_birth = self.extract_lambda_birth(cluster_id, condensed_tree);
+        println!("+++M11 lambda_birth: {:?}", lambda_birth);
         condensed_tree
             .iter()
             .filter(|node| node.parent_node_id == cluster_id)
@@ -691,6 +697,10 @@ impl<'a, T: Float + Debug> Hdbscan<'a, T> {
     }
 
     fn extract_lambda_birth(&self, cluster_id: usize, condensed_tree: &CondensedTree<T>) -> T {
+        println!(
+            "+++M12 cluster_id: {:?}, n_samples: {:?}",
+            cluster_id, self.n_samples
+        );
         if self.is_top_cluster(&cluster_id) {
             T::zero()
         } else {
@@ -1095,7 +1105,7 @@ mod tests {
         let hyper_params = HdbscanHyperParams::builder()
             .allow_single_cluster(true)
             .min_cluster_size(2)
-            .min_samples(1)
+            .min_samples(2)
             .dist_metric(DistanceMetric::Haversine)
             // 5000m to consider separate cluster
             .epsilon(5000.0)

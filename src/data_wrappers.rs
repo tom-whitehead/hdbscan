@@ -12,6 +12,7 @@ pub(crate) struct SLTNode<T> {
     pub(crate) size: usize,
 }
 
+#[derive(Debug)]
 pub(crate) struct CondensedNode<T> {
     pub(crate) node_id: usize,
     pub(crate) parent_node_id: usize,
