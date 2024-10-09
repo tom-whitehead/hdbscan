@@ -116,6 +116,10 @@ assert_eq!(2, centroids.len());
 assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
 ```
 
+# References
+[Campello, R.J.G.B.; Moulavi, D.; Sander, J. Density-based clustering based on hierarchical density estimates.](https://link.springer.com/chapter/10.1007/978-3-642-37456-2_14)   
+[How HDSCAN Works](https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html). Leland McInnes, John Healy, Steve Astels.
+
 # License
 Dual-licensed to be compatible with the Rust project.
 
