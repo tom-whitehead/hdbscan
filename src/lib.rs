@@ -661,11 +661,12 @@ impl<'a, T: Float> Hdbscan<'a, T> {
 
     fn get_cluster_id_bounds(&self, condensed_tree: &CondensedTree<T>) -> (usize, usize) {
         if self.hp.allow_single_cluster {
-            let lower = self.n_samples;
-            (lower, lower + condensed_tree.len() - self.n_samples + 1)
+            let n_clusters = condensed_tree.len() - self.n_samples + 1;
+            (self.n_samples, self.n_samples + n_clusters)
         } else {
             let lower = self.n_samples + 1;
-            (lower, lower + condensed_tree.len() - self.n_samples)
+            let n_clusters = condensed_tree.len() - self.n_samples;
+            (lower, lower + n_clusters)
         }
     }
 
