@@ -1,3 +1,9 @@
+# Version 0.8.2 2024-10-11
+## Changes
+- Fix for a bug that occurred when `allow_single_cluster` was set to true. If you want to run clustering with 
+  this hyper parameter set to true, then it is strongly recommended that you use this version or higher.
+- Cluster centers for geographical clusters.
+
 # Version 0.8.1 2024-09-18
 ## Changes
 - Consistency in cluster labels between runs of the algorithm. If you ran clustering on the same data numerous times,
