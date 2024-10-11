@@ -55,6 +55,7 @@ use crate::union_find::UnionFind;
 use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
+use std::ops::Range;
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
@@ -608,12 +609,14 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
-        let n_clusters = self.calc_num_clusters(condensed_tree);
-        let mut stabilities = self.calc_all_stabilities(n_clusters, condensed_tree);
+        let (lower, upper) = self.get_cluster_id_bounds(condensed_tree);
+        let n_clusters = upper - lower;
+
+        let mut stabilities = self.calc_all_stabilities(lower..upper, condensed_tree);
         let mut clusters: HashMap<usize, bool> =
             stabilities.keys().map(|id| (*id, false)).collect();
 
-        for cluster_id in ((self.n_samples + 1)..(n_clusters + self.n_samples + 1)).rev() {
+        for cluster_id in (lower..upper).rev() {
             let stability = stabilities
                 .get(&cluster_id)
                 .expect("Couldn't retrieve stability");
@@ -656,20 +659,23 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         selected_cluster_ids
     }
 
-    fn calc_num_clusters(&self, condensed_tree: &CondensedTree<T>) -> usize {
+    fn get_cluster_id_bounds(&self, condensed_tree: &CondensedTree<T>) -> (usize, usize) {
         if self.hp.allow_single_cluster {
-            condensed_tree.len() - self.n_samples + 1
+            let n_clusters = condensed_tree.len() - self.n_samples + 1;
+            (self.n_samples, self.n_samples + n_clusters)
         } else {
-            condensed_tree.len() - self.n_samples
+            let lower = self.n_samples + 1;
+            let n_clusters = condensed_tree.len() - self.n_samples;
+            (lower, lower + n_clusters)
         }
     }
 
     fn calc_all_stabilities(
         &self,
-        n_clusters: usize,
+        cluster_id_range: Range<usize>,
         condensed_tree: &CondensedTree<T>,
     ) -> HashMap<usize, T> {
-        ((self.n_samples + 1)..(n_clusters + self.n_samples + 1))
+        cluster_id_range
             .map(|cluster_id| (cluster_id, self.calc_stability(cluster_id, condensed_tree)))
             .collect()
     }
@@ -850,10 +856,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ) -> Vec<i32> {
         // Assume all data points are noise by default then label the ones in clusters
         let mut labels = vec![-1; self.n_samples];
+        let n_clusters = winning_clusters.len();
 
         for (current_cluster_id, cluster_id) in winning_clusters.iter().enumerate() {
             let node_size = self.get_cluster_size(cluster_id, condensed_tree);
-            self.find_child_samples(*cluster_id, node_size, condensed_tree)
+            self.find_child_samples(*cluster_id, node_size, n_clusters, condensed_tree)
                 .into_iter()
                 .for_each(|id| labels[id] = current_cluster_id as i32);
         }
@@ -864,6 +871,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         root_node_id: usize,
         node_size: usize,
+        n_clusters: usize,
         condensed_tree: &CondensedTree<T>,
     ) -> Vec<usize> {
         let mut process_queue = VecDeque::from([root_node_id]);
@@ -875,21 +883,50 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 None => break,
             };
             for node in condensed_tree {
-                if node.parent_node_id == current_node_id {
-                    if self.is_individual_sample(&node.node_id) {
-                        if self.hp.allow_single_cluster && self.is_top_cluster(&current_node_id) {
-                            continue;
-                        }
-                        child_nodes.push(node.node_id);
-                    } else {
-                        // Else it is a cluster not an individual data point
-                        // so need to find its children
-                        process_queue.push_back(node.node_id);
+                // Skip nodes that aren't the child of this one
+                if node.parent_node_id != current_node_id {
+                    continue;
+                }
+                // If node is a cluster, then its children need processing
+                if self.is_cluster(&node.node_id) {
+                    process_queue.push_back(node.node_id);
+                    continue;
+                }
+                // Finally, handle individual data points
+                if n_clusters == 1 && self.hp.allow_single_cluster {
+                    let lambda_threshold = self.get_lambda_threshold(root_node_id, condensed_tree);
+                    let node_lambda = self.extract_lambda_birth(node.node_id, condensed_tree);
+                    if node_lambda >= lambda_threshold {
+                        child_nodes.push(node.node_id)
                     }
+                } else if self.hp.allow_single_cluster && self.is_top_cluster(&current_node_id) {
+                    continue;
+                } else {
+                    child_nodes.push(node.node_id);
                 }
             }
         }
         child_nodes
+    }
+
+    fn get_lambda_threshold(&self, root_node_id: usize, condensed_tree: &CondensedTree<T>) -> T {
+        if self.hp.epsilon == 0.0 {
+            condensed_tree
+                .iter()
+                .filter(|node| node.parent_node_id == root_node_id)
+                .map(|node| node.lambda_birth)
+                .fold(None, |max, lambda| match max {
+                    None => Some(lambda),
+                    Some(max_lambda) => Some(if lambda > max_lambda {
+                        lambda
+                    } else {
+                        max_lambda
+                    }),
+                })
+                .expect("Could not find child nodes")
+        } else {
+            T::from(1.0 / self.hp.epsilon).unwrap()
+        }
     }
 }
 
@@ -936,6 +973,33 @@ mod tests {
         assert_eq!(1, result[3..6].iter().collect::<HashSet<_>>().len());
         // The final point is noise
         assert_eq!(-1, result[6]);
+    }
+
+    #[test]
+    fn single_cluster() {
+        let data = vec![
+            vec![1.1, 1.1],
+            vec![1.2, 1.1],
+            vec![1.3, 1.2],
+            vec![1.1, 1.3],
+            vec![1.2, 1.2],
+            vec![3.0, 3.0],
+        ];
+
+        let hp = HdbscanHyperParams::builder()
+            .nn_algorithm(NnAlgorithm::BruteForce)
+            .allow_single_cluster(true)
+            .min_cluster_size(4)
+            .min_samples(4)
+            .build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();
+        assert_eq!(1, unique_clusters.len());
+
+        let noise_points: Vec<_> = result.iter().filter(|&&x| x == -1).collect();
+        assert_eq!(1, noise_points.len());
     }
 
     #[test]
