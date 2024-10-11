@@ -21,6 +21,10 @@ pub enum DistanceMetric {
     /// The sum of all absolute differences between each dimension of two points.
     /// Also known as L1 norm or city block.
     Manhattan,
+    /// Measures the cosine of the angle between two vectors.
+    /// Range is [0, 2] for non-negative inputs, where 0 means identical direction, 2 means opposite directions.
+    /// Ignores magnitude, only considers orientation.
+    Cosine,
 }
 
 impl DistanceMetric {
@@ -31,6 +35,7 @@ impl DistanceMetric {
             Self::Euclidean => euclidean_distance(a, b),
             Self::Haversine => haversine_distance(a, b),
             Self::Manhattan => manhattan_distance(a, b),
+            Self::Cosine => cosine_distance(a, b),
         }
     }
 }
@@ -42,6 +47,7 @@ pub(crate) fn get_dist_func<T: Float>(metric: &DistanceMetric) -> impl Fn(&[T], 
         DistanceMetric::Euclidean => euclidean_distance,
         DistanceMetric::Haversine => haversine_distance,
         DistanceMetric::Manhattan => manhattan_distance,
+        DistanceMetric::Cosine => cosine_distance,
     }
 }
 
@@ -91,6 +97,28 @@ pub(crate) fn chebyshev_distance<T: Float>(a: &[T], b: &[T]) -> T {
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)).abs())
         .fold(T::zero(), T::max)
+}
+
+pub(crate) fn cosine_distance<T: Float>(a: &[T], b: &[T]) -> T {
+    assert_inputs(a, b);
+
+    let dot_product = a
+        .iter()
+        .zip(b.iter())
+        .map(|(x, y)| ((*x) * (*y)))
+        .fold(T::zero(), std::ops::Add::add);
+    let magnitude_a = a
+        .iter()
+        .map(|&x| x.powi(2))
+        .fold(T::zero(), std::ops::Add::add)
+        .sqrt();
+    let magnitude_b = b
+        .iter()
+        .map(|&x| x.powi(2))
+        .fold(T::zero(), std::ops::Add::add)
+        .sqrt();
+
+    T::one() - (dot_product / (magnitude_a * magnitude_b))
 }
 
 pub(crate) fn cylindrical_distance<T: Float>(a: &[T], b: &[T]) -> T {
