@@ -649,10 +649,18 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .into_iter()
             .filter(|(_id, should_keep)| *should_keep)
             .map(|(id, _should_keep)| id)
-            .collect();
+            .collect::<Vec<_>>();
+
+        // Check epsilon if set
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
-            selected_cluster_ids =
-                self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
+            // Skip epsilon check if there is only one cluster and it is the root cluster
+            let is_single_root_cluster = selected_cluster_ids.len() == 1
+                && self.hp.allow_single_cluster
+                && self.is_top_cluster(&selected_cluster_ids[0]);
+            if !is_single_root_cluster {
+                selected_cluster_ids =
+                    self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
+            }
         }
 
         selected_cluster_ids.sort();
@@ -810,25 +818,32 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             let parent_id = condensed_tree
                 .iter()
                 .find(|node| node.node_id == current_id)
-                .map(|node| node.parent_node_id)
-                .expect("Couldn't find node");
-            if self.is_top_cluster(&parent_id) {
-                if self.hp.allow_single_cluster {
-                    winning_cluster_id = parent_id;
-                } else {
+                .map(|node| node.parent_node_id);
+
+            match parent_id {
+                None => {
                     winning_cluster_id = current_id;
+                    break;
                 }
-                break;
+                Some(parent_id) => {
+                    if self.is_top_cluster(&parent_id) {
+                        if self.hp.allow_single_cluster {
+                            winning_cluster_id = parent_id;
+                        } else {
+                            winning_cluster_id = current_id;
+                        }
+                        break;
+                    }
+                    let parent_epsilon =
+                        self.calc_cluster_epsilon(parent_id, condensed_tree, epsilon);
+                    if parent_epsilon > epsilon {
+                        winning_cluster_id = parent_id;
+                        break;
+                    }
+                    current_id = parent_id;
+                }
             }
-
-            let parent_epsilon = self.calc_cluster_epsilon(parent_id, condensed_tree, epsilon);
-            if parent_epsilon > epsilon {
-                winning_cluster_id = parent_id;
-                break;
-            }
-            current_id = parent_id;
         }
-
         winning_cluster_id
     }
 
@@ -923,7 +938,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                         max_lambda
                     }),
                 })
-                .expect("Could not find child nodes")
+                .unwrap_or(T::zero())
         } else {
             T::from(1.0 / self.hp.epsilon).unwrap()
         }
