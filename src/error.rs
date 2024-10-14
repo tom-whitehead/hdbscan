@@ -1,25 +1,14 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
+use thiserror::Error;
 
 /// Possible errors that arise due to issues with HDBSCAN input data.
-#[derive(Debug, Clone)]
+#[derive(Error, Debug)]
 pub enum HdbscanError {
+    #[error("Could not find node")]
+    NodeNotFound,
+    #[error("The dataset provided is empty")]
     EmptyDataset,
+    #[error("Input vectors have mismatched dimensions {0}")]
     WrongDimension(String),
+    #[error("Non finite coordinates: {0}")]
     NonFiniteCoordinate(String),
-}
-
-impl Error for HdbscanError {}
-
-impl Display for HdbscanError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let message = match self {
-            HdbscanError::EmptyDataset => String::from("The dataset provided is empty"),
-            HdbscanError::WrongDimension(msg) => {
-                format!("Input vectors have mismatched dimensions: {msg}")
-            }
-            HdbscanError::NonFiniteCoordinate(msg) => format!("Non finite coordinate: {msg}"),
-        };
-        write!(f, "{message}")
-    }
 }

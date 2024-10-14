@@ -210,7 +210,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
-        let winning_clusters = self.extract_winning_clusters(&condensed_tree);
+        let winning_clusters = self.extract_winning_clusters(&condensed_tree)?;
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
         Ok(labelled_data)
     }
@@ -608,7 +608,10 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
     }
 
-    fn extract_winning_clusters(&self, condensed_tree: &CondensedTree<T>) -> Vec<usize> {
+    fn extract_winning_clusters(
+        &self,
+        condensed_tree: &CondensedTree<T>,
+    ) -> Result<Vec<usize>, HdbscanError> {
         let (lower, upper) = self.get_cluster_id_bounds(condensed_tree);
         let n_clusters = upper - lower;
 
@@ -652,11 +655,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .collect();
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
             selected_cluster_ids =
-                self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
+                self.check_cluster_epsilons(selected_cluster_ids, condensed_tree)?;
         }
 
         selected_cluster_ids.sort();
-        selected_cluster_ids
+        Ok(selected_cluster_ids)
     }
 
     fn get_cluster_id_bounds(&self, condensed_tree: &CondensedTree<T>) -> (usize, usize) {
@@ -770,7 +773,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &self,
         winning_clusters: Vec<usize>,
         condensed_tree: &CondensedTree<T>,
-    ) -> Vec<usize> {
+    ) -> Result<Vec<usize>, HdbscanError> {
         let epsilon = T::from(self.hp.epsilon).expect("Couldn't convert f64 epsilon to T");
         let mut processed: Vec<usize> = Vec::new();
         let mut winning_epsilon_clusters = Vec::new();
@@ -783,7 +786,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                     continue;
                 }
                 let winning_cluster_id =
-                    self.find_higher_node_sufficient_epsilon(*cluster_id, condensed_tree, epsilon);
+                    self.find_higher_node_sufficient_epsilon(*cluster_id, condensed_tree, epsilon)?;
                 winning_epsilon_clusters.push(winning_cluster_id);
 
                 for sub_node in self.find_child_clusters(&winning_cluster_id, condensed_tree) {
@@ -795,7 +798,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 winning_epsilon_clusters.push(*cluster_id);
             }
         }
-        winning_epsilon_clusters
+        Ok(winning_epsilon_clusters)
     }
 
     fn find_higher_node_sufficient_epsilon(
@@ -803,7 +806,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         starting_cluster_id: usize,
         condensed_tree: &CondensedTree<T>,
         epsilon: T,
-    ) -> usize {
+    ) -> Result<usize, HdbscanError> {
         let mut current_id = starting_cluster_id;
         let winning_cluster_id;
         loop {
@@ -811,7 +814,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 .iter()
                 .find(|node| node.node_id == current_id)
                 .map(|node| node.parent_node_id)
-                .expect("Couldn't find node");
+                .ok_or(HdbscanError::NodeNotFound)?;
             if self.is_top_cluster(&parent_id) {
                 if self.hp.allow_single_cluster {
                     winning_cluster_id = parent_id;
@@ -829,7 +832,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             current_id = parent_id;
         }
 
-        winning_cluster_id
+        Ok(winning_cluster_id)
     }
 
     fn calc_cluster_epsilon(

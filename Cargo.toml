@@ -13,3 +13,4 @@ categories = ["algorithms", "mathematics", "science"]
 [dependencies]
 num-traits = "0.2.18"
 kdtree = "0.7.0"
+thiserror = "1"
