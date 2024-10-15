@@ -812,7 +812,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 .iter()
                 .find(|node| node.node_id == current_id)
                 .map(|node| node.parent_node_id)
-                // If the node isn't in the tree there must be only a single root cluster as 
+                // If the node isn't in the tree there must be only a single root cluster as
                 // this isn't stored explicitly in the tree. Its id is always max node id + 1
                 .unwrap_or(self.n_samples);
             if self.is_top_cluster(&parent_id) {
@@ -1045,6 +1045,35 @@ mod tests {
             .collect::<HashSet<_>>();
         assert_eq!(1, unique_clusters.len());
         // One point is still noise
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
+    }
+
+    #[test]
+    fn single_root_cluster_only_epsilon_search() {
+        // This used to cause a panic
+        let data = vec![
+            vec![1.1, 1.1],
+            vec![1.2, 1.1],
+            vec![1.3, 1.2],
+            vec![3.0, 3.0],
+        ];
+
+        let hp = HdbscanHyperParams::builder()
+            .allow_single_cluster(true)
+            .min_cluster_size(3)
+            .epsilon(1.2)
+            .build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        // Without allow_single_cluster and epsilon, there are two clusters
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
+        assert_eq!(1, unique_clusters.len());
+        // One point is noise
         let n_noise = result.iter().filter(|&&label| label == -1).count();
         assert_eq!(1, n_noise);
     }
