@@ -651,16 +651,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .map(|(id, _should_keep)| id)
             .collect::<Vec<_>>();
 
-        // Check epsilon if set
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
-            // Skip epsilon check if there is only one cluster and it is the root cluster
-            let is_single_root_cluster = selected_cluster_ids.len() == 1
-                && self.hp.allow_single_cluster
-                && self.is_top_cluster(&selected_cluster_ids[0]);
-            if !is_single_root_cluster {
-                selected_cluster_ids =
-                    self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
-            }
+            selected_cluster_ids =
+                self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
         }
 
         selected_cluster_ids.sort();
@@ -818,31 +811,25 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             let parent_id = condensed_tree
                 .iter()
                 .find(|node| node.node_id == current_id)
-                .map(|node| node.parent_node_id);
-
-            match parent_id {
-                None => {
+                .map(|node| node.parent_node_id)
+                // If the node isn't in the tree there must be only a single root cluster as 
+                // this isn't stored explicitly in the tree. Its id is always max node id + 1
+                .unwrap_or(self.n_samples);
+            if self.is_top_cluster(&parent_id) {
+                if self.hp.allow_single_cluster {
+                    winning_cluster_id = parent_id;
+                } else {
                     winning_cluster_id = current_id;
-                    break;
                 }
-                Some(parent_id) => {
-                    if self.is_top_cluster(&parent_id) {
-                        if self.hp.allow_single_cluster {
-                            winning_cluster_id = parent_id;
-                        } else {
-                            winning_cluster_id = current_id;
-                        }
-                        break;
-                    }
-                    let parent_epsilon =
-                        self.calc_cluster_epsilon(parent_id, condensed_tree, epsilon);
-                    if parent_epsilon > epsilon {
-                        winning_cluster_id = parent_id;
-                        break;
-                    }
-                    current_id = parent_id;
-                }
+                break;
             }
+
+            let parent_epsilon = self.calc_cluster_epsilon(parent_id, condensed_tree, epsilon);
+            if parent_epsilon > epsilon {
+                winning_cluster_id = parent_id;
+                break;
+            }
+            current_id = parent_id;
         }
         winning_cluster_id
     }
@@ -1032,15 +1019,16 @@ mod tests {
         let hp = HdbscanHyperParams::builder().min_cluster_size(3).build();
         let clusterer = Hdbscan::new(&data, hp);
         let result = clusterer.cluster().unwrap();
-        println!("{:?}", result);
 
         // Without allow_single_cluster and epsilon, there are two clusters
-        let unique_clusters = result.iter().filter(|&&label| label != -1).collect::<HashSet<_>>();
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
         assert_eq!(2, unique_clusters.len());
         // One point is noise
         let n_noise = result.iter().filter(|&&label| label == -1).count();
         assert_eq!(1, n_noise);
-
 
         let hp = HdbscanHyperParams::builder()
             .allow_single_cluster(true)
@@ -1051,7 +1039,10 @@ mod tests {
         let result = clusterer.cluster().unwrap();
 
         // With allow_single_cluster and epsilon, first size points are one merged cluster
-        let unique_clusters = result.iter().filter(|&&label| label != -1).collect::<HashSet<_>>();
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
         assert_eq!(1, unique_clusters.len());
         // One point is still noise
         let n_noise = result.iter().filter(|&&label| label == -1).count();
