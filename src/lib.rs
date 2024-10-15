@@ -649,7 +649,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .into_iter()
             .filter(|(_id, should_keep)| *should_keep)
             .map(|(id, _should_keep)| id)
-            .collect::<Vec<_>>();
+            .collect();
 
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
             selected_cluster_ids =
@@ -1067,13 +1067,11 @@ mod tests {
         let clusterer = Hdbscan::new(&data, hp);
         let result = clusterer.cluster().unwrap();
 
-        // Without allow_single_cluster and epsilon, there are two clusters
         let unique_clusters = result
             .iter()
             .filter(|&&label| label != -1)
             .collect::<HashSet<_>>();
         assert_eq!(1, unique_clusters.len());
-        // One point is noise
         let n_noise = result.iter().filter(|&&label| label == -1).count();
         assert_eq!(1, n_noise);
     }
