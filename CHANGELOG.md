@@ -1,3 +1,8 @@
+# Version 0.8.3 2024-10-15
+## Changes
+- Fix for a bug that occurred when `allow_single_cluster` was set to true and the root cluster is the only one
+  potential cluster. This previously caused a panic, but could only be triggered for very small datasets. 
+ 
 # Version 0.8.2 2024-10-11
 ## Changes
 - Fix for a bug that occurred when `allow_single_cluster` was set to true. If you want to run clustering with 
