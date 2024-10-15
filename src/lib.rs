@@ -650,6 +650,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             .filter(|(_id, should_keep)| *should_keep)
             .map(|(id, _should_keep)| id)
             .collect();
+
         if self.hp.epsilon != 0.0 && n_clusters > 0 {
             selected_cluster_ids =
                 self.check_cluster_epsilons(selected_cluster_ids, condensed_tree);
@@ -811,7 +812,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 .iter()
                 .find(|node| node.node_id == current_id)
                 .map(|node| node.parent_node_id)
-                .expect("Couldn't find node");
+                // If the node isn't in the tree there must be only a single root cluster as
+                // this isn't stored explicitly in the tree. Its id is always max node id + 1
+                .unwrap_or(self.n_samples);
             if self.is_top_cluster(&parent_id) {
                 if self.hp.allow_single_cluster {
                     winning_cluster_id = parent_id;
@@ -828,7 +831,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             }
             current_id = parent_id;
         }
-
         winning_cluster_id
     }
 
@@ -923,7 +925,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                         max_lambda
                     }),
                 })
-                .expect("Could not find child nodes")
+                .unwrap_or(T::zero())
         } else {
             T::from(1.0 / self.hp.epsilon).unwrap()
         }
@@ -1000,6 +1002,78 @@ mod tests {
 
         let noise_points: Vec<_> = result.iter().filter(|&&x| x == -1).collect();
         assert_eq!(1, noise_points.len());
+    }
+
+    #[test]
+    fn single_cluster_epsilon_search() {
+        let data = vec![
+            vec![1.1, 1.1],
+            vec![1.2, 1.1],
+            vec![1.3, 1.2],
+            vec![2.1, 1.3],
+            vec![2.2, 1.2],
+            vec![2.0, 1.2],
+            vec![3.0, 3.0],
+        ];
+
+        let hp = HdbscanHyperParams::builder().min_cluster_size(3).build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        // Without allow_single_cluster and epsilon, there are two clusters
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
+        assert_eq!(2, unique_clusters.len());
+        // One point is noise
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
+
+        let hp = HdbscanHyperParams::builder()
+            .allow_single_cluster(true)
+            .min_cluster_size(3)
+            .epsilon(1.2)
+            .build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        // With allow_single_cluster and epsilon, first size points are one merged cluster
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
+        assert_eq!(1, unique_clusters.len());
+        // One point is still noise
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
+    }
+
+    #[test]
+    fn single_root_cluster_only_epsilon_search() {
+        // This used to cause a panic
+        let data = vec![
+            vec![1.1, 1.1],
+            vec![1.2, 1.1],
+            vec![1.3, 1.2],
+            vec![3.0, 3.0],
+        ];
+
+        let hp = HdbscanHyperParams::builder()
+            .allow_single_cluster(true)
+            .min_cluster_size(3)
+            .epsilon(1.2)
+            .build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
+        assert_eq!(1, unique_clusters.len());
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
     }
 
     #[test]
