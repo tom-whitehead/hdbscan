@@ -1018,6 +1018,47 @@ mod tests {
     }
 
     #[test]
+    fn single_cluster_epsilon_search() {
+        let data = vec![
+            vec![1.1, 1.1],
+            vec![1.2, 1.1],
+            vec![1.3, 1.2],
+            vec![2.1, 1.3],
+            vec![2.2, 1.2],
+            vec![2.0, 1.2],
+            vec![3.0, 3.0],
+        ];
+
+        let hp = HdbscanHyperParams::builder().min_cluster_size(3).build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+        println!("{:?}", result);
+
+        // Without allow_single_cluster and epsilon, there are two clusters
+        let unique_clusters = result.iter().filter(|&&label| label != -1).collect::<HashSet<_>>();
+        assert_eq!(2, unique_clusters.len());
+        // One point is noise
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
+
+
+        let hp = HdbscanHyperParams::builder()
+            .allow_single_cluster(true)
+            .min_cluster_size(3)
+            .epsilon(1.2)
+            .build();
+        let clusterer = Hdbscan::new(&data, hp);
+        let result = clusterer.cluster().unwrap();
+
+        // With allow_single_cluster and epsilon, first size points are one merged cluster
+        let unique_clusters = result.iter().filter(|&&label| label != -1).collect::<HashSet<_>>();
+        assert_eq!(1, unique_clusters.len());
+        // One point is still noise
+        let n_noise = result.iter().filter(|&&label| label == -1).count();
+        assert_eq!(1, n_noise);
+    }
+
+    #[test]
     fn empty_data() {
         let data: Vec<Vec<f32>> = Vec::new();
         let clusterer = Hdbscan::default_hyper_params(&data);
