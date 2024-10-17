@@ -1,4 +1,5 @@
 use num_traits::Float;
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 /// Possible methodologies for calculating the center of clusters
@@ -7,22 +8,32 @@ pub enum Center {
     /// The elementwise mean of all data points in a cluster.
     /// The output is not guaranteed to be an observed data point.
     Centroid,
-    /// Calculates the geographical centeroid for lat/lon coordinates.
+    /// Calculates the geographical centroid for lat/lon coordinates.
     /// Assumes input coordinates are in degrees (latitude, longitude).
     /// Output coordinates are also in degrees.
     GeoCentroid,
+    /// The point in a cluster with the minimum distance to all other points.
+    /// Computationally more expensive than centroids as requires calculation of
+    /// pairwise distances. The output will be an observed data point in the cluster.
+    Medoid,
 }
 
 impl Center {
-    pub(crate) fn calc_centers<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
+    pub(crate) fn calc_centers<T: Float, F: Fn(&[T], &[T]) -> T>(
+        &self,
+        data: &[Vec<T>],
+        labels: &[i32],
+        dist_func: F,
+    ) -> Vec<Vec<T>> {
         match self {
             Center::Centroid => self.calc_centroids(data, labels),
             Center::GeoCentroid => self.calc_geo_centroids(data, labels),
+            Center::Medoid => self.calc_medoids(data, labels, dist_func),
         }
     }
 
     fn calc_centroids<T: Float>(&self, data: &[Vec<T>], labels: &[i32]) -> Vec<Vec<T>> {
-        // All points weighted equally
+        // All points weighted equally for now
         let weights = vec![T::one(); data.len()];
         Center::calc_weighted_centroids(data, labels, &weights)
     }
@@ -120,5 +131,46 @@ impl Center {
         }
 
         centers
+    }
+
+    fn calc_medoids<T: Float, F: Fn(&[T], &[T]) -> T>(
+        &self,
+        data: &[Vec<T>],
+        labels: &[i32],
+        dist_func: F,
+    ) -> Vec<Vec<T>> {
+        let n_clusters = labels
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>()
+            .len();
+        let mut medoids = Vec::with_capacity(n_clusters);
+
+        for cluster_id in 0..n_clusters as i32 {
+            let cluster_data = data
+                .iter()
+                .zip(labels.iter())
+                .filter(|(_datapoint, &label)| label == cluster_id)
+                .map(|(datapoint, _label)| datapoint)
+                .collect::<Vec<&Vec<_>>>();
+
+            let n_samples = cluster_data.len();
+            let medoid_idx = (0..n_samples)
+                .map(|i| {
+                    (0..n_samples)
+                        .map(|j| dist_func(cluster_data[i], cluster_data[j]))
+                        .fold(T::zero(), std::ops::Add::add)
+                })
+                .enumerate()
+                .min_by(|(_idx_a, sum_a), (_idx_b, sum_b)| {
+                    sum_a.partial_cmp(sum_b).unwrap_or(Ordering::Equal)
+                })
+                .map(|(idx, _sum)| idx)
+                .unwrap_or(0);
+
+            medoids.push(cluster_data[medoid_idx].clone())
+        }
+
+        medoids
     }
 }
