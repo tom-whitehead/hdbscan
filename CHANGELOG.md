@@ -2,7 +2,7 @@
 ## Changes
 - Added `Center::Medoid` as a means of calculating the center of clusters. The medoid is the point in a cluster with 
   the minimum distance to all other points. Computationally more expensive than centroids as requires calculation of
-  pairwise distances. The output will be an observed data point in the cluster.
+  pairwise distances (using the selected distance metric). The output will be an observed data point in the cluster.
  
 # Version 0.8.3 2024-10-15
 ## Changes
