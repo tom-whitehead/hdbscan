@@ -12,8 +12,8 @@ pub enum Center {
     /// Assumes input coordinates are in degrees (latitude, longitude).
     /// Output coordinates are also in degrees.
     GeoCentroid,
-    /// The point in a cluster with the minimum distance to all other points. Computationally more 
-    /// expensive than centroids as requires calculation of pairwise distances (using the selected 
+    /// The point in a cluster with the minimum distance to all other points. Computationally more
+    /// expensive than centroids as requires calculation of pairwise distances (using the selected
     /// distance metric). The output will be an observed data point in the cluster.
     Medoid,
 }
