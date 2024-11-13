@@ -218,17 +218,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// Calculates the centers of the clusters just calculate.
     ///
     /// # Parameters
-    /// * `center` - the type of center to calculate. Currently only centroid (the element wise mean
-    ///              of all the data points in a cluster) is supported.
+    /// * `center` - the type of center to calculate.
     /// * `labels` - a reference to the labels calculated by a call to `Hdbscan::cluster`.
     ///
     /// # Returns
     /// * A vector of the cluster centers, of shape num clusters by num dimensions/features. The
     ///   index of the centroid is the cluster label. For example, the centroid cluster of label 0
     ///   will be the first centroid in the vector of centroids.
-    ///
-    /// # Panics
-    /// * If the labels are of different length to the data passed to the `Hdbscan` constructor
     ///
     /// # Examples
     /// ```
@@ -258,14 +254,22 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         center: Center,
         labels: &[i32],
     ) -> Result<Vec<Vec<T>>, HdbscanError> {
-        assert_eq!(labels.len(), self.data.len());
+        if labels.len() != self.data.len() {
+            return Err(HdbscanError::WrongDimension(String::from(
+                "The length of the labels must equal the length of the original clustering data.",
+            )));
+        }
         if self.hp.dist_metric != DistanceMetric::Haversine && center == Center::GeoCentroid {
             // TODO: Implement a more appropriate error variant when doing a major version bump
             return Err(HdbscanError::WrongDimension(String::from(
                 "Geographical centroids can only be used with geographical coordinates.",
             )));
         }
-        Ok(center.calc_centers(self.data, labels))
+        Ok(center.calc_centers(
+            self.data,
+            labels,
+            distance::get_dist_func(&self.hp.dist_metric),
+        ))
     }
 
     fn validate_input_data(&self) -> Result<(), HdbscanError> {
@@ -1101,13 +1105,44 @@ mod tests {
     }
 
     #[test]
-    fn calc_centers() {
+    fn calc_centroids() {
         let data = cluster_test_data();
         let clusterer = Hdbscan::default_hyper_params(&data);
         let labels = clusterer.cluster().unwrap();
         let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
         assert_eq!(2, centroids.len());
         assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
+    }
+
+    #[test]
+    fn calc_medoids() {
+        let data: Vec<Vec<f32>> = vec![
+            vec![1.3, 1.2],
+            vec![1.2, 1.3],
+            vec![1.5, 1.5],
+            vec![1.6, 1.7],
+            vec![1.7, 1.6],
+            vec![6.3, 6.2],
+            vec![6.2, 6.3],
+            vec![6.5, 6.5],
+            vec![6.6, 6.7],
+            vec![6.7, 6.6],
+        ];
+        let clusterer = Hdbscan::default_hyper_params(&data);
+        let result = clusterer.cluster().unwrap();
+        let centers = clusterer.calc_centers(Center::Medoid, &result).unwrap();
+
+        let unique_clusters = result
+            .iter()
+            .filter(|&&label| label != -1)
+            .collect::<HashSet<_>>();
+        assert_eq!(centers.len(), unique_clusters.len());
+
+        centers
+            .iter()
+            .for_each(|center| assert!(data.contains(center)));
+        assert_eq!(vec![1.5, 1.5], centers[0]);
+        assert_eq!(vec![6.5, 6.5], centers[1]);
     }
 
     fn cluster_test_data() -> Vec<Vec<f32>> {
