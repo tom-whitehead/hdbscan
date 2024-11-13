@@ -218,7 +218,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     /// Calculates the centers of the clusters just calculate.
     ///
     /// # Parameters
-    /// * `center` - the type of center to calculate. 
+    /// * `center` - the type of center to calculate.
     /// * `labels` - a reference to the labels calculated by a call to `Hdbscan::cluster`.
     ///
     /// # Returns
