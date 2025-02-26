@@ -49,7 +49,7 @@
 //! * [Campello, R.J.G.B.; Moulavi, D.; Sander, J. Density-based clustering based on hierarchical density estimates.](https://link.springer.com/chapter/10.1007/978-3-642-37456-2_14)
 //! * [How HDBSCAN Works](https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html)
 
-use crate::core_distances::{BruteForce, CoreDistance, KdTree};
+use crate::core_distances::{get_core_distances_from_matrix, BruteForce, CoreDistance, KdTree};
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
 use num_traits::Float;
@@ -265,6 +265,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
                 "Geographical centroids can only be used with geographical coordinates.",
             )));
         }
+        if self.hp.dist_metric == DistanceMetric::Precalculated {
+            // TODO: Implement a more appropriate error variant when doing a major version bump
+            return Err(HdbscanError::WrongDimension(String::from(
+                "Centroids cannot be calculated when using precalculated distances.",
+            )));
+        }
+
         Ok(center.calc_centers(
             self.data,
             labels,
@@ -273,6 +280,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     }
 
     fn validate_input_data(&self) -> Result<(), HdbscanError> {
+        // TODO: Replace with checking for at least 2 points?
         if self.data.is_empty() {
             return Err(HdbscanError::EmptyDataset);
         }
@@ -297,6 +305,9 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         }
         if self.hp.dist_metric == DistanceMetric::Haversine {
             self.validate_geographical_coords()?
+        }
+        if self.hp.dist_metric == DistanceMetric::Precalculated {
+            self.validate_precomputed_distances()?
         }
 
         Ok(())
@@ -355,16 +366,42 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         Ok(())
     }
 
+    fn validate_precomputed_distances(&self) -> Result<(), HdbscanError> {
+        if !self.is_symmetrical_matrix() {
+            return Err(HdbscanError::WrongDimension(String::from(
+                "Pre-calculated distances must be a symmetrical distance matrix",
+            )));
+        }
+        Ok(())
+    }
+
+    fn is_symmetrical_matrix(&self) -> bool {
+        if self.data.iter().any(|row| row.len() != self.n_samples) {
+            return false;
+        }
+        for i in 0.. self.n_samples {
+            for j in 0..self.n_samples {
+                if (self.data[i][j] - self.data[j][i]).abs() > T::epsilon() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     fn calc_core_distances(&self) -> Vec<T> {
         let (data, k, dist_metric) = (self.data, self.hp.min_samples, self.hp.dist_metric);
 
-        match (&self.hp.nn_algo, self.n_samples) {
-            (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT) => {
+        match (&self.hp.nn_algo, self.n_samples, &self.hp.dist_metric) {
+            (_, _, DistanceMetric::Precalculated) => get_core_distances_from_matrix(data, k),
+            (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT, _) => {
                 BruteForce::calc_core_distances(data, k, dist_metric)
             }
-            (NnAlgorithm::Auto, _) => KdTree::calc_core_distances(data, k, dist_metric),
-            (NnAlgorithm::BruteForce, _) => BruteForce::calc_core_distances(data, k, dist_metric),
-            (NnAlgorithm::KdTree, _) => KdTree::calc_core_distances(data, k, dist_metric),
+            (NnAlgorithm::Auto, _, _) => KdTree::calc_core_distances(data, k, dist_metric),
+            (NnAlgorithm::BruteForce, _, _) => {
+                BruteForce::calc_core_distances(data, k, dist_metric)
+            }
+            (NnAlgorithm::KdTree, _, _) => KdTree::calc_core_distances(data, k, dist_metric),
         }
     }
 
@@ -409,7 +446,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn calc_mutual_reachability_dist(&self, a: usize, b: usize, core_distances: &[T]) -> T {
         let core_dist_a = core_distances[a];
         let core_dist_b = core_distances[b];
-        let dist_a_b = self.hp.dist_metric.calc_dist(&self.data[a], &self.data[b]);
+        let dist_a_b = if self.hp.dist_metric == DistanceMetric::Precalculated {
+            self.data[a][b]
+        } else {
+            self.hp.dist_metric.calc_dist(&self.data[a], &self.data[b])
+        };
 
         core_dist_a.max(core_dist_b).max(dist_a_b)
     }
@@ -1247,5 +1288,30 @@ mod tests {
         assert_eq!(1, result[3..6].iter().collect::<HashSet<_>>().len());
         // The final red point is noise
         assert_eq!(-1, result[6]);
+    }
+
+    #[test]
+    fn test_precomputed_distances() {
+        let dist_matrix = vec![
+            vec![0.0, 0.1, 0.2, 0.3, 9.0],
+            vec![0.1, 0.0, 0.1, 0.2, 9.0],
+            vec![0.2, 0.1, 0.0, 0.1, 9.0],
+            vec![0.3, 0.2, 0.1, 0.0, 9.0],
+            vec![9.0, 9.0, 9.0, 9.0, 9.0],
+        ];
+        let hyper_params = HdbscanHyperParams::builder()
+            .dist_metric(DistanceMetric::Precalculated)
+            .allow_single_cluster(true)
+            .min_cluster_size(2)
+            .min_samples(1)
+            .build();
+
+        let clusterer = Hdbscan::new(&dist_matrix, hyper_params);
+        let result = clusterer.cluster().unwrap();
+
+        // Check that we have 1 cluster and 1 noise point
+        let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();
+        assert_eq!(unique_clusters.len(), 1, "Should have 1 distinct cluster");
+        assert_eq!(result[result.len() - 1], -1, "Should have 0 noise points");
     }
 }
