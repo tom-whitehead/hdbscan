@@ -379,7 +379,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         if self.data.iter().any(|row| row.len() != self.n_samples) {
             return false;
         }
-        for i in 0.. self.n_samples {
+        for i in 0..self.n_samples {
             for j in 0..self.n_samples {
                 if (self.data[i][j] - self.data[j][i]).abs() > T::epsilon() {
                     return false;
