@@ -131,7 +131,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         since = "0.8.1",
         note = "Please use `default_hyper_params` constructor instead"
     )]
-    pub fn default(data: &'a [Vec<T>]) -> Hdbscan<T> {
+    pub fn default(data: &'a [Vec<T>]) -> Hdbscan<'a, T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
     }
@@ -162,7 +162,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     ///];
     ///let clusterer = Hdbscan::default_hyper_params(&data);
     /// ```
-    pub fn default_hyper_params(data: &'a [Vec<T>]) -> Hdbscan<T> {
+    pub fn default_hyper_params(data: &'a [Vec<T>]) -> Hdbscan<'a, T> {
         let hyper_params = HdbscanHyperParams::default();
         Hdbscan::new(data, hyper_params)
     }
@@ -755,7 +755,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         &'b self,
         cluster_id: usize,
         condensed_tree: &'b CondensedTree<T>,
-    ) -> Vec<&CondensedNode<T>> {
+    ) -> Vec<&'b CondensedNode<T>> {
         condensed_tree
             .iter()
             .filter(|node| node.parent_node_id == cluster_id)
