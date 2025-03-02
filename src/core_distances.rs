@@ -29,16 +29,8 @@ impl CoreDistance for BruteForce {
         k: usize,
         dist_metric: DistanceMetric,
     ) -> Vec<T> {
-        let n_samples = data.len();
         let dist_matrix = calc_pairwise_distances(data, distance::get_dist_func(&dist_metric));
-        let mut core_distances = Vec::with_capacity(n_samples);
-
-        for mut distances in dist_matrix.into_iter().take(n_samples) {
-            distances.sort_by(|a, b| a.partial_cmp(b).expect("Invalid float"));
-            core_distances.push(distances[k - 1]);
-        }
-
-        core_distances
+        get_core_distances_from_matrix(&dist_matrix, k)
     }
 }
 
@@ -58,6 +50,19 @@ where
         }
     }
     dist_matrix
+}
+
+pub(crate) fn get_core_distances_from_matrix<T: Float>(dist_matrix: &[Vec<T>], k: usize) -> Vec<T> {
+    let n_samples = dist_matrix.len();
+    let mut core_distances = Vec::with_capacity(n_samples);
+
+    for distances in dist_matrix.iter().take(n_samples) {
+        let mut distances = distances.clone();
+        distances.sort_by(|a, b| a.partial_cmp(b).expect("Invalid float"));
+        core_distances.push(distances[k - 1]);
+    }
+
+    core_distances
 }
 
 pub(crate) struct KdTree;

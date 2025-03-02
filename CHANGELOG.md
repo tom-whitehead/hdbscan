@@ -1,3 +1,10 @@
+# Version 0.10.0 2024-11-13
+## Changes
+- Added the ability to cluster from a precomputed distance matrix. This is useful when you have a distance matrix 
+  calculated from a different source and you want to cluster the data based on that matrix. This can be done by 
+  specifying `DistanceMetric::Precalculated` hyper parameter and providing the distance matrix as a 2D vector to 
+  `Hdbscan::new`.
+
 # Version 0.9.0 2024-11-13
 ## Changes
 - Added `Center::Medoid` as a means of calculating the center of clusters. The medoid is the point in a cluster with 

@@ -21,6 +21,9 @@ pub enum DistanceMetric {
     /// The sum of all absolute differences between each dimension of two points.
     /// Also known as L1 norm or city block.
     Manhattan,
+    /// Pre-calculated distance metric between the points is provided as `data` parameter
+    /// to the HDBSCAN constructor
+    Precalculated,
 }
 
 impl DistanceMetric {
@@ -31,6 +34,7 @@ impl DistanceMetric {
             Self::Euclidean => euclidean_distance(a, b),
             Self::Haversine => haversine_distance(a, b),
             Self::Manhattan => manhattan_distance(a, b),
+            Self::Precalculated => panic!("Precalculated distance metric should not be used here"),
         }
     }
 }
@@ -42,6 +46,9 @@ pub(crate) fn get_dist_func<T: Float>(metric: &DistanceMetric) -> impl Fn(&[T], 
         DistanceMetric::Euclidean => euclidean_distance,
         DistanceMetric::Haversine => haversine_distance,
         DistanceMetric::Manhattan => manhattan_distance,
+        DistanceMetric::Precalculated => {
+            panic!("Precalculated distance metric should not be used here")
+        }
     }
 }
 
