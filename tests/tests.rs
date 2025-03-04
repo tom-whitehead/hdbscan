@@ -1,6 +1,6 @@
 use hdbscan::{Center, DistanceMetric, Hdbscan, HdbscanError, HdbscanHyperParams, NnAlgorithm};
-use std::collections::HashSet;
 use num_traits::Float;
+use std::collections::HashSet;
 
 #[test]
 fn cluster() {
