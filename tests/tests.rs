@@ -277,6 +277,37 @@ fn test_nyc_landmarks_haversine() {
 }
 
 #[test]
+fn test_180th_meridian() {
+    let data = vec![
+        vec![-16.8410, 179.9813],  // Taveuni, Fiji
+        vec![-16.7480, -179.9670], // Qamea, Fiji 
+        vec![51.5085, -0.1257], // London - noise
+    ];
+    
+    let hyper_params = HdbscanHyperParams::builder()
+        .dist_metric(DistanceMetric::Haversine)
+        .allow_single_cluster(true)
+        .min_cluster_size(2)
+        .min_samples(1)
+        .build();
+    
+    let clusterer = Hdbscan::new(&data, hyper_params);
+    let labels = clusterer.cluster().unwrap();
+    
+    // There is only one cluster
+    assert_eq!(1, labels.iter().filter(|&&x| x != -1).collect::<HashSet<_>>().len());
+    // The last point is noise
+    assert_eq!(-1, labels[2]);
+    
+    let centroids = clusterer.calc_centers(Center::GeoCentroid, &labels).unwrap();
+    let cluster_longitude = centroids[0][1];
+
+    // The cluster centroid is not impacted by the longitudes being either side 
+    // of the 180th meridian
+    assert!(cluster_longitude > 179.0 || cluster_longitude < -179.0);
+}
+
+#[test]
 fn test_cylindrical_hsv_colours() {
     // HSV colours re-ordered to SHV
     let data = vec![
