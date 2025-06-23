@@ -277,7 +277,7 @@ fn test_nyc_landmarks_haversine() {
 }
 
 #[test]
-fn test_180th_meridian() {
+fn geo_cluster_across_180th_meridian() {
     let data = vec![
         vec![-16.8410, 179.9813],  // Taveuni, Fiji
         vec![-16.7480, -179.9670], // Qamea, Fiji 
