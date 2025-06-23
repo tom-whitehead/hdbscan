@@ -100,44 +100,44 @@ impl Center {
             .len();
         let mut centers = vec![vec![T::zero(), T::zero(), T::zero()]; n_clusters];
         let mut counts = vec![T::zero(); n_clusters];
-    
+
         for (point, &label) in data.iter().zip(labels.iter()) {
             if label != -1 {
                 let cluster_index = label as usize;
-    
+
                 let lat = point[0].to_radians();
                 let lon = point[1].to_radians();
-    
+
                 let x = lon.cos() * lat.cos();
                 let y = lon.sin() * lat.cos();
                 let z = lat.sin();
-    
+
                 centers[cluster_index][0] = centers[cluster_index][0] + x;
                 centers[cluster_index][1] = centers[cluster_index][1] + y;
                 centers[cluster_index][2] = centers[cluster_index][2] + z;
                 counts[cluster_index] = counts[cluster_index] + T::one();
             }
         }
-    
+
         for (center, &count) in centers.iter_mut().zip(counts.iter()) {
             if count > T::zero() {
                 let x = center[0] / count;
                 let y = center[1] / count;
                 let z = center[2] / count;
-    
+
                 let lon = y.atan2(x);
                 let hyp = (x * x + y * y).sqrt();
                 let lat = z.atan2(hyp);
-    
+
                 // Convert back to degrees
                 center[0] = lat.to_degrees();
                 center[1] = lon.to_degrees();
             }
         }
-    
+
         centers.iter().map(|c| vec![c[0], c[1]]).collect()
     }
-    
+
     fn calc_medoids<T: Float, F: Fn(&[T], &[T]) -> T>(
         &self,
         data: &[Vec<T>],
