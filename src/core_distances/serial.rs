@@ -1,15 +1,7 @@
-use super::*;
+use super::{NnAlgorithm, BRUTE_FORCE_N_SAMPLES_LIMIT};
+use crate::distance::{get_dist_func, DistanceMetric};
 use crate::HdbscanHyperParams;
-
-const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
-
-pub(crate) trait CoreDistance {
-    fn calc_core_distances<T: Float>(
-        data: &[Vec<T>],
-        k: usize,
-        dist_metric: DistanceMetric,
-    ) -> Vec<T>;
-}
+use num_traits::Float;
 
 pub(crate) struct CoreDistanceCalculator<'a, T> {
     data: &'a [Vec<T>],
@@ -52,13 +44,13 @@ impl<'a, T: Float> CoreDistanceCalculator<'a, T> {
 
 pub(crate) struct BruteForce;
 
-impl CoreDistance for BruteForce {
+impl BruteForce {
     fn calc_core_distances<T: Float>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,
     ) -> Vec<T> {
-        let dist_matrix = calc_pairwise_distances(data, distance::get_dist_func(&dist_metric));
+        let dist_matrix = calc_pairwise_distances(data, get_dist_func(&dist_metric));
         get_core_distances_from_matrix(&dist_matrix, k)
     }
 }
@@ -92,7 +84,7 @@ pub(crate) fn get_core_distances_from_matrix<T: Float>(dist_matrix: &[Vec<T>], k
 
 pub(crate) struct KdTree;
 
-impl CoreDistance for KdTree {
+impl KdTree {
     fn calc_core_distances<T: Float>(
         data: &[Vec<T>],
         k: usize,
@@ -103,7 +95,7 @@ impl CoreDistance for KdTree {
             .enumerate()
             .for_each(|(n, datapoint)| tree.add(datapoint, n).expect("Failed to add to KdTree"));
 
-        let dist_func = distance::get_dist_func(&dist_metric);
+        let dist_func = get_dist_func(&dist_metric);
         data.iter()
             .map(|datapoint| {
                 let result = tree

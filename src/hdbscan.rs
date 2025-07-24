@@ -1,5 +1,5 @@
-// #[cfg(feature = "parallel")]
-// use crate::core_distances::parallel::CoreDistanceCalculatorPt ar;
+#[cfg(feature = "parallel")]
+use crate::core_distances::parallel::CoreDistanceCalculatorPar;
 use crate::core_distances::serial::CoreDistanceCalculator;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
@@ -144,6 +144,20 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         let validator = DataValidator::new(self.data, &self.hp);
         validator.validate_input_data()?;
         let calculator = CoreDistanceCalculator::new(&self.data, &self.hp);
+        let core_distances = calculator.calc_core_distances();
+        let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
+        let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
+        let condensed_tree = self.condense_tree(&single_linkage_tree);
+        let winning_clusters = self.extract_winning_clusters(&condensed_tree);
+        let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
+        Ok(labelled_data)
+    }
+
+    #[cfg(feature = "parallel")]
+    pub fn cluster_par(&self) -> Result<Vec<i32>, HdbscanError> {
+        let validator = DataValidator::new(self.data, &self.hp);
+        validator.validate_input_data()?;
+        let calculator = CoreDistanceCalculatorPar::new(&self.data, &self.hp);
         let core_distances = calculator.calc_core_distances();
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);

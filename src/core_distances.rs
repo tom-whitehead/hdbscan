@@ -1,5 +1,4 @@
-use crate::{distance, DistanceMetric};
-use num_traits::Float;
+const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
 
 #[cfg(feature = "parallel")]
 pub(super) mod parallel;
