@@ -4,7 +4,6 @@ use crate::HdbscanHyperParams;
 use num_traits::Float;
 use rayon::prelude::*;
 
-const BRUTE_CHUNK_SIZE: usize = 100;
 const BRUTE_CHUNK_DATASET_THRESHOLD: usize = 10_000;
 
 pub(crate) struct CoreDistanceCalculatorPar<'a, T> {
@@ -31,7 +30,7 @@ impl<'a, T: Float + Send + Sync> CoreDistanceCalculatorPar<'a, T> {
                 get_core_distances_from_matrix(&self.data, self.k)
             }
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT, _) => {
-                BruteForce::calc_core_distances(&self.data, self.k, self.dist_metric)
+                BruteForce::calc_core_distances_direct(&self.data, self.k, self.dist_metric)
             }
             (NnAlgorithm::Auto, _, _) => {
                 KdTree::calc_core_distances(&self.data, self.k, self.dist_metric)
@@ -49,7 +48,10 @@ impl<'a, T: Float + Send + Sync> CoreDistanceCalculatorPar<'a, T> {
     }
 }
 
-pub(crate) fn get_core_distances_from_matrix<T: Float>(dist_matrix: &[Vec<T>], k: usize) -> Vec<T> {
+pub(crate) fn get_core_distances_from_matrix<T>(dist_matrix: &[Vec<T>], k: usize) -> Vec<T>
+where
+    T: Float + Send + Sync,
+{
     dist_matrix
         .par_iter()
         .map(|distances| {
@@ -63,7 +65,7 @@ pub(crate) fn get_core_distances_from_matrix<T: Float>(dist_matrix: &[Vec<T>], k
 pub(crate) struct BruteForce;
 
 impl BruteForce {
-    fn calc_core_distances_direct<T: Float>(
+    fn calc_core_distances_direct<T: Float + Send + Sync>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,
@@ -82,12 +84,13 @@ impl BruteForce {
             .collect()
     }
 
-    fn calc_core_distances_chunked<T: Float>(
+    fn calc_core_distances_chunked<T: Float + Send + Sync>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,
     ) -> Vec<T> {
-        let chunk_size = (n / rayon::current_num_threads()).max(100);
+        let chunk_size = (data.len() / rayon::current_num_threads()).max(100);
+        let dist_func = get_dist_func(&dist_metric);
 
         data.par_chunks(chunk_size)
             .flat_map(|chunk| {
@@ -108,7 +111,7 @@ impl BruteForce {
 pub(crate) struct KdTree;
 
 impl KdTree {
-    fn calc_core_distances<T: Float>(
+    fn calc_core_distances<T: Float + Send + Sync>(
         data: &[Vec<T>],
         k: usize,
         dist_metric: DistanceMetric,

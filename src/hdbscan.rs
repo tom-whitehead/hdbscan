@@ -19,7 +19,7 @@ pub struct Hdbscan<'a, T> {
     hp: HdbscanHyperParams,
 }
 
-impl<'a, T: Float> Hdbscan<'a, T> {
+impl<'a, T: Float + Send + Sync> Hdbscan<'a, T> {
     /// Creates an instance of HDBSCAN clustering model using a custom hyper parameter
     /// configuration.
     ///
