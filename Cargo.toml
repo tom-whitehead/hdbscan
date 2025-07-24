@@ -13,3 +13,7 @@ categories = ["algorithms", "mathematics", "science"]
 [dependencies]
 num-traits = "0.2.18"
 kdtree = "0.7.0"
+rayon = { version = "1.10.0", optional = true }
+
+[features]
+parallel = ["dep:rayon"]

@@ -1,13 +1,13 @@
-use crate::core_distances::{get_core_distances_from_matrix, BruteForce, CoreDistance, KdTree};
+// #[cfg(feature = "parallel")]
+// use crate::core_distances::parallel::CoreDistanceCalculatorPt ar;
+use crate::core_distances::serial::CoreDistanceCalculator;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
 use crate::validation::DataValidator;
-use crate::{distance, Center, DistanceMetric, HdbscanError, HdbscanHyperParams, NnAlgorithm};
+use crate::{distance, Center, DistanceMetric, HdbscanError, HdbscanHyperParams};
 use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
-
-const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
 
 type CondensedTree<T> = Vec<CondensedNode<T>>;
 
@@ -143,7 +143,8 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         let validator = DataValidator::new(self.data, &self.hp);
         validator.validate_input_data()?;
-        let core_distances = self.calc_core_distances();
+        let calculator = CoreDistanceCalculator::new(&self.data, &self.hp);
+        let core_distances = calculator.calc_core_distances();
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
@@ -214,22 +215,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             labels,
             distance::get_dist_func(&self.hp.dist_metric),
         ))
-    }
-
-    fn calc_core_distances(&self) -> Vec<T> {
-        let (data, k, dist_metric) = (self.data, self.hp.min_samples, self.hp.dist_metric);
-
-        match (&self.hp.nn_algo, self.n_samples, &self.hp.dist_metric) {
-            (_, _, DistanceMetric::Precalculated) => get_core_distances_from_matrix(data, k),
-            (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT, _) => {
-                BruteForce::calc_core_distances(data, k, dist_metric)
-            }
-            (NnAlgorithm::Auto, _, _) => KdTree::calc_core_distances(data, k, dist_metric),
-            (NnAlgorithm::BruteForce, _, _) => {
-                BruteForce::calc_core_distances(data, k, dist_metric)
-            }
-            (NnAlgorithm::KdTree, _, _) => KdTree::calc_core_distances(data, k, dist_metric),
-        }
     }
 
     fn prims_min_spanning_tree(&self, core_distances: &[T]) -> Vec<MSTEdge<T>> {
