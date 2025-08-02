@@ -35,4 +35,6 @@ jobs:
         run: cargo clippy -- -Dclippy::all -Dwarnings
 
       - name: Run | Test
-        run: cargo test
+        run: |
+          cargo test --test serial
+          cargo test --test parallel --features parallel

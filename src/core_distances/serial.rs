@@ -1,3 +1,4 @@
+#![cfg(feature = "serial")]
 use super::{NnAlgorithm, BRUTE_FORCE_N_SAMPLES_LIMIT};
 use crate::distance::{get_dist_func, DistanceMetric};
 use crate::HdbscanHyperParams;

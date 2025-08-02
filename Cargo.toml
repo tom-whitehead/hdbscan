@@ -16,4 +16,6 @@ kdtree = "0.7.0"
 rayon = { version = "1.10.0", optional = true }
 
 [features]
+default = ["serial"]
+serial = []
 parallel = ["dep:rayon"]

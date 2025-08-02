@@ -2,11 +2,12 @@ use hdbscan::{Center, DistanceMetric, Hdbscan, HdbscanError, HdbscanHyperParams,
 use num_traits::Float;
 use std::collections::HashSet;
 
-#[test]
-fn cluster() {
+type ClusterFn = fn(&Hdbscan<f32>) -> Result<Vec<i32>, HdbscanError>;
+
+pub(crate) fn test_cluster(cluster_fn: ClusterFn) {
     let data = cluster_test_data();
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
     // First five points form one cluster
     assert_eq!(1, result[..5].iter().collect::<HashSet<_>>().len());
     // Next five points are a second cluster
@@ -15,8 +16,7 @@ fn cluster() {
     assert_eq!(-1, result[10]);
 }
 
-#[test]
-fn builder_cluster() {
+pub(crate) fn test_builder_cluster(cluster_fn: ClusterFn) {
     let data = vec![
         vec![1.3, 1.1],
         vec![1.3, 1.2],
@@ -33,7 +33,7 @@ fn builder_cluster() {
         .nn_algorithm(NnAlgorithm::BruteForce)
         .build();
     let clusterer = Hdbscan::new(&data, hyper_params);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
     // First three points form one cluster
     assert_eq!(1, result[..3].iter().collect::<HashSet<_>>().len());
     // Next three points are a second cluster
@@ -42,8 +42,7 @@ fn builder_cluster() {
     assert_eq!(-1, result[6]);
 }
 
-#[test]
-fn single_cluster() {
+pub(crate) fn test_single_cluster(cluster_fn: ClusterFn) {
     let data = vec![
         vec![1.1, 1.1],
         vec![1.2, 1.1],
@@ -60,7 +59,7 @@ fn single_cluster() {
         .min_samples(4)
         .build();
     let clusterer = Hdbscan::new(&data, hp);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();
     assert_eq!(1, unique_clusters.len());
@@ -69,8 +68,7 @@ fn single_cluster() {
     assert_eq!(1, noise_points.len());
 }
 
-#[test]
-fn single_cluster_epsilon_search() {
+pub(crate) fn test_single_cluster_epsilon_search(cluster_fn: ClusterFn) {
     let data = vec![
         vec![1.1, 1.1],
         vec![1.2, 1.1],
@@ -83,7 +81,7 @@ fn single_cluster_epsilon_search() {
 
     let hp = HdbscanHyperParams::builder().min_cluster_size(3).build();
     let clusterer = Hdbscan::new(&data, hp);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     // Without allow_single_cluster and epsilon, there are two clusters
     let unique_clusters = result
@@ -101,7 +99,7 @@ fn single_cluster_epsilon_search() {
         .epsilon(1.2)
         .build();
     let clusterer = Hdbscan::new(&data, hp);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     // With allow_single_cluster and epsilon, first size points are one merged cluster
     let unique_clusters = result
@@ -114,8 +112,7 @@ fn single_cluster_epsilon_search() {
     assert_eq!(1, n_noise);
 }
 
-#[test]
-fn single_root_cluster_only_epsilon_search() {
+pub(crate) fn test_single_root_cluster_only_epsilon_search(cluster_fn: ClusterFn) {
     // This used to cause a panic
     let data = vec![
         vec![1.1, 1.1],
@@ -130,7 +127,7 @@ fn single_root_cluster_only_epsilon_search() {
         .epsilon(1.2)
         .build();
     let clusterer = Hdbscan::new(&data, hp);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     let unique_clusters = result
         .iter()
@@ -141,42 +138,37 @@ fn single_root_cluster_only_epsilon_search() {
     assert_eq!(1, n_noise);
 }
 
-#[test]
-fn empty_data() {
+pub(crate) fn test_empty_data(cluster_fn: ClusterFn) {
     let data: Vec<Vec<f32>> = Vec::new();
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = clusterer.cluster();
+    let result = cluster_fn(&clusterer);
     assert!(matches!(result, Err(HdbscanError::EmptyDataset)));
 }
 
-#[test]
-fn non_finite_coordinate() {
+pub(crate) fn test_non_finite_coordinate(cluster_fn: ClusterFn) {
     let data = vec![vec![1.5, f32::infinity()]];
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = clusterer.cluster();
+    let result = cluster_fn(&clusterer);
     assert!(matches!(result, Err(HdbscanError::NonFiniteCoordinate(..))));
 }
 
-#[test]
-fn mismatched_dimensions() {
+pub(crate) fn test_mismatched_dimensions(cluster_fn: ClusterFn) {
     let data = vec![vec![1.5, 2.2], vec![1.0, 1.1], vec![1.2]];
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = clusterer.cluster();
+    let result = cluster_fn(&clusterer);
     assert!(matches!(result, Err(HdbscanError::WrongDimension(..))));
 }
 
-#[test]
-fn calc_centroids() {
+pub(crate) fn test_calc_centroids(cluster_fn: ClusterFn) {
     let data = cluster_test_data();
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let labels = clusterer.cluster().unwrap();
+    let labels = cluster_fn(&clusterer).unwrap();
     let centroids = clusterer.calc_centers(Center::Centroid, &labels).unwrap();
     assert_eq!(2, centroids.len());
     assert!(centroids.contains(&vec![3.8, 4.0]) && centroids.contains(&vec![1.12, 1.34]));
 }
 
-#[test]
-fn calc_medoids() {
+pub(crate) fn test_calc_medoids(cluster_fn: ClusterFn) {
     let data: Vec<Vec<f32>> = vec![
         vec![1.3, 1.2],
         vec![1.2, 1.3],
@@ -190,7 +182,7 @@ fn calc_medoids() {
         vec![6.7, 6.6],
     ];
     let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
     let centers = clusterer.calc_centers(Center::Medoid, &result).unwrap();
 
     let unique_clusters = result
@@ -206,7 +198,7 @@ fn calc_medoids() {
     assert_eq!(vec![6.5, 6.5], centers[1]);
 }
 
-fn cluster_test_data() -> Vec<Vec<f32>> {
+pub(crate) fn cluster_test_data() -> Vec<Vec<f32>> {
     vec![
         vec![1.5, 2.2],
         vec![1.0, 1.1],
@@ -222,8 +214,7 @@ fn cluster_test_data() -> Vec<Vec<f32>> {
     ]
 }
 
-#[test]
-fn test_nyc_landmarks_haversine() {
+pub(crate) fn test_nyc_landmarks_haversine(cluster_fn: ClusterFn) {
     let data = vec![
         // Cluster 1: Statue of Liberty area
         vec![40.6892, -74.0445], // Statue of Liberty
@@ -251,7 +242,7 @@ fn test_nyc_landmarks_haversine() {
         .build();
 
     let clusterer = Hdbscan::new(&data, hyper_params);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     // Check that we have 3 clusters and 1 noise point
     let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();
@@ -276,8 +267,7 @@ fn test_nyc_landmarks_haversine() {
     assert_eq!(result[9], -1);
 }
 
-#[test]
-fn geo_cluster_across_180th_meridian() {
+pub(crate) fn test_geo_cluster_across_180th_meridian(cluster_fn: ClusterFn) {
     let data = vec![
         vec![-16.8410, 179.9813],  // Taveuni, Fiji
         vec![-16.7480, -179.9670], // Qamea, Fiji
@@ -292,7 +282,7 @@ fn geo_cluster_across_180th_meridian() {
         .build();
 
     let clusterer = Hdbscan::new(&data, hyper_params);
-    let labels = clusterer.cluster().unwrap();
+    let labels = cluster_fn(&clusterer).unwrap();
 
     // There is only one cluster
     assert_eq!(
@@ -316,8 +306,7 @@ fn geo_cluster_across_180th_meridian() {
     assert!(cluster_longitude > 179.0 || cluster_longitude < -179.0);
 }
 
-#[test]
-fn test_cylindrical_hsv_colours() {
+pub(crate) fn test_cylindrical_hsv_colours(cluster_fn: ClusterFn) {
     // HSV colours re-ordered to SHV
     let data = vec![
         // Blues
@@ -340,7 +329,7 @@ fn test_cylindrical_hsv_colours() {
         .build();
 
     let clusterer = Hdbscan::new(&data, hyper_params);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     // Blues all form one cluster
     assert_eq!(1, result[..3].iter().collect::<HashSet<_>>().len());
@@ -350,8 +339,7 @@ fn test_cylindrical_hsv_colours() {
     assert_eq!(-1, result[6]);
 }
 
-#[test]
-fn test_precomputed_distances() {
+pub(crate) fn test_precomputed_distances(cluster_fn: ClusterFn) {
     let dist_matrix = vec![
         vec![0.0, 0.1, 0.2, 0.3, 9.0],
         vec![0.1, 0.0, 0.1, 0.2, 9.0],
@@ -367,7 +355,7 @@ fn test_precomputed_distances() {
         .build();
 
     let clusterer = Hdbscan::new(&dist_matrix, hyper_params);
-    let result = clusterer.cluster().unwrap();
+    let result = cluster_fn(&clusterer).unwrap();
 
     // Check that we have 1 cluster and 1 noise point
     let unique_clusters: HashSet<_> = result.iter().filter(|&&x| x != -1).collect();

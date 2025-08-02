@@ -140,6 +140,7 @@ impl<'a, T: Float + Send + Sync> Hdbscan<'a, T> {
     /// // The final point is noise
     ///assert_eq!(-1, labels[10]);
     /// ```
+    #[cfg(feature = "serial")]
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         let validator = DataValidator::new(self.data, &self.hp);
         validator.validate_input_data()?;
@@ -153,6 +154,44 @@ impl<'a, T: Float + Send + Sync> Hdbscan<'a, T> {
         Ok(labelled_data)
     }
 
+    /// Performs clustering on the list of vectors passed to the constructor, with some parallelism.
+    /// Not recommended for small or low dimension datasets.
+    ///
+    /// # Returns
+    /// * A result that, if successful, contains a list of cluster labels, with a length equal to
+    ///   the numbe of samples passed to the constructor. Positive integers mean a data point
+    ///   belongs to a cluster of that label. -1 labels mean that a data point is noise and does
+    ///   not belong to any cluster. An Error will be returned if the dimensionality of the input
+    ///   vectors are mismatched, if any vector contains non-finite coordinates, or if the passed
+    ///   data set is empty.
+    ///
+    /// # Examples
+    /// ```
+    ///use std::collections::HashSet;
+    ///use hdbscan::Hdbscan;
+    ///
+    ///let data: Vec<Vec<f32>> = vec![
+    ///    vec![1.5, 2.2],
+    ///    vec![1.0, 1.1],
+    ///    vec![1.2, 1.4],
+    ///    vec![0.8, 1.0],
+    ///    vec![1.1, 1.0],
+    ///    vec![3.7, 4.0],
+    ///    vec![3.9, 3.9],
+    ///    vec![3.6, 4.1],
+    ///    vec![3.8, 3.9],
+    ///    vec![4.0, 4.1],
+    ///    vec![10.0, 10.0],
+    ///];
+    ///let clusterer = Hdbscan::default_hyper_params(&data);
+    ///let labels = clusterer.cluster_par().unwrap();
+    /// //First five points form one cluster
+    ///assert_eq!(1, labels[..5].iter().collect::<HashSet<_>>().len());
+    /// // Next five points are a second cluster
+    ///assert_eq!(1, labels[5..10].iter().collect::<HashSet<_>>().len());
+    /// // The final point is noise
+    ///assert_eq!(-1, labels[10]);
+    /// ```
     #[cfg(feature = "parallel")]
     pub fn cluster_par(&self) -> Result<Vec<i32>, HdbscanError> {
         let validator = DataValidator::new(self.data, &self.hp);

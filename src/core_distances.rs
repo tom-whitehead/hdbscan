@@ -2,6 +2,7 @@ const BRUTE_FORCE_N_SAMPLES_LIMIT: usize = 250;
 
 #[cfg(feature = "parallel")]
 pub(super) mod parallel;
+#[cfg(feature = "serial")]
 pub(super) mod serial;
 
 /// The nearest neighbour algorithm options
