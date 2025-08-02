@@ -30,4 +30,3 @@ define_parallel_test!(test_nyc_landmarks_haversine);
 define_parallel_test!(test_geo_cluster_across_180th_meridian);
 define_parallel_test!(test_cylindrical_hsv_colours);
 define_parallel_test!(test_precomputed_distances);
-
