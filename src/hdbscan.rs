@@ -144,7 +144,7 @@ impl<'a, T: Float + Send + Sync> Hdbscan<'a, T> {
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
         let validator = DataValidator::new(self.data, &self.hp);
         validator.validate_input_data()?;
-        let calculator = CoreDistanceCalculator::new(&self.data, &self.hp);
+        let calculator = CoreDistanceCalculator::new(self.data, &self.hp);
         let core_distances = calculator.calc_core_distances();
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
@@ -196,7 +196,7 @@ impl<'a, T: Float + Send + Sync> Hdbscan<'a, T> {
     pub fn cluster_par(&self) -> Result<Vec<i32>, HdbscanError> {
         let validator = DataValidator::new(self.data, &self.hp);
         validator.validate_input_data()?;
-        let calculator = CoreDistanceCalculatorPar::new(&self.data, &self.hp);
+        let calculator = CoreDistanceCalculatorPar::new(self.data, &self.hp);
         let core_distances = calculator.calc_core_distances();
         let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);

@@ -1,4 +1,3 @@
-#![cfg(feature = "serial")]
 use super::{NnAlgorithm, BRUTE_FORCE_N_SAMPLES_LIMIT};
 use crate::distance::{get_dist_func, DistanceMetric};
 use crate::HdbscanHyperParams;
@@ -25,19 +24,19 @@ impl<'a, T: Float> CoreDistanceCalculator<'a, T> {
         let n_samples = self.data.len();
         match (&self.nn_algo, n_samples, &self.dist_metric) {
             (_, _, DistanceMetric::Precalculated) => {
-                get_core_distances_from_matrix(&self.data, self.k)
+                get_core_distances_from_matrix(self.data, self.k)
             }
             (NnAlgorithm::Auto, usize::MIN..=BRUTE_FORCE_N_SAMPLES_LIMIT, _) => {
-                BruteForce::calc_core_distances(&self.data, self.k, self.dist_metric)
+                BruteForce::calc_core_distances(self.data, self.k, self.dist_metric)
             }
             (NnAlgorithm::Auto, _, _) => {
-                KdTree::calc_core_distances(&self.data, self.k, self.dist_metric)
+                KdTree::calc_core_distances(self.data, self.k, self.dist_metric)
             }
             (NnAlgorithm::BruteForce, _, _) => {
-                BruteForce::calc_core_distances(&self.data, self.k, self.dist_metric)
+                BruteForce::calc_core_distances(self.data, self.k, self.dist_metric)
             }
             (NnAlgorithm::KdTree, _, _) => {
-                KdTree::calc_core_distances(&self.data, self.k, self.dist_metric)
+                KdTree::calc_core_distances(self.data, self.k, self.dist_metric)
             }
         }
     }
@@ -62,10 +61,8 @@ where
     F: Fn(&[T], &[T]) -> T,
 {
     (0..data.len())
-        .into_iter()
         .map(|i| {
             (0..data.len())
-                .into_iter()
                 .map(|j| dist_func(&data[i], &data[j]))
                 .collect()
         })
