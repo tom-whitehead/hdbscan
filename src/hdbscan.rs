@@ -1,5 +1,6 @@
 #[cfg(feature = "parallel")]
 use crate::core_distances::parallel::CoreDistanceCalculatorPar;
+#[cfg(feature = "serial")]
 use crate::core_distances::serial::CoreDistanceCalculator;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
 use crate::union_find::UnionFind;
