@@ -1,6 +1,6 @@
 [package]
 name = "hdbscan"
-version = "0.10.1"
+version = "0.11.0"
 edition = "2021"
 authors = [ "Tom Whitehead <t.j.whitehead21@gmail.com>", ]
 description = "HDBSCAN clustering in pure Rust. A huge improvement on DBSCAN, capable of identifying clusters of varying densities."
@@ -13,3 +13,9 @@ categories = ["algorithms", "mathematics", "science"]
 [dependencies]
 num-traits = "0.2.18"
 kdtree = "0.7.0"
+rayon = { version = "1.10.0", optional = true }
+
+[features]
+default = ["serial"]
+serial = []
+parallel = ["dep:rayon"]
