@@ -1,3 +1,10 @@
+# Version 0.11.0 2025-08-03
+## Changes
+- Addition of optional `parallel` feature that adds a method `cluster_par` to the `Hdbscan` struct. This method
+  leverages `rayon` to perform some operations in parallel, although will likely only be beneficial for large datasets
+  or datasets with high dimensionality. There are still other operations that can be done in parallel, but those will
+  be done as part of future releases.
+
 # Version 0.10.0 2024-11-13
 ## Changes
 - Added the ability to cluster from a precomputed distance matrix. This is useful when you have a distance matrix 
