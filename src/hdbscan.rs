@@ -3,6 +3,11 @@ use crate::core_distances::parallel::CoreDistanceCalculatorPar;
 #[cfg(feature = "serial")]
 use crate::core_distances::serial::CoreDistanceCalculator;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
+#[cfg(feature = "parallel")]
+use crate::min_spanning_tree::parallel::PrimsMinSpanningTreePar;
+#[cfg(feature = "serial")]
+use crate::min_spanning_tree::serial::PrimsMinSpanningTree;
+use crate::min_spanning_tree::MinSpanningTree;
 use crate::union_find::UnionFind;
 use crate::validation::DataValidator;
 use crate::{distance, Center, DistanceMetric, HdbscanError, HdbscanHyperParams};
@@ -26,7 +31,7 @@ impl<T: Float> Hdbscan<'_, T> {
     ///
     /// # Returns
     /// * A result that, if successful, contains a list of cluster labels, with a length equal to
-    ///   the numbe of samples passed to the constructor. Positive integers mean a data point
+    ///   the number of samples passed to the constructor. Positive integers mean a data point
     ///   belongs to a cluster of that label. -1 labels mean that a data point is noise and does
     ///   not belong to any cluster. An Error will be returned if the dimensionality of the input
     ///   vectors are mismatched, if any vector contains non-finite coordinates, or if the passed
@@ -60,15 +65,20 @@ impl<T: Float> Hdbscan<'_, T> {
     ///assert_eq!(-1, labels[10]);
     /// ```
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
-        let validator = DataValidator::new(self.data, &self.hp);
-        validator.validate_input_data()?;
-        let calculator = CoreDistanceCalculator::new(self.data, &self.hp);
-        let core_distances = calculator.calc_core_distances();
-        let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
+        DataValidator::new(self.data, &self.hp).validate_input_data()?;
+
+        let core_dist_calculator = CoreDistanceCalculator::new(self.data, &self.hp);
+        let core_distances = core_dist_calculator.calc_core_distances();
+
+        let mst_calculator =
+            PrimsMinSpanningTree::new(self.data, self.hp.dist_metric, &core_distances);
+        let min_spanning_tree = mst_calculator.compute();
+
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
         let winning_clusters = self.extract_winning_clusters(&condensed_tree);
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
+
         Ok(labelled_data)
     }
 }
@@ -80,7 +90,7 @@ impl<T: Float + Send + Sync> Hdbscan<'_, T> {
     ///
     /// # Returns
     /// * A result that, if successful, contains a list of cluster labels, with a length equal to
-    ///   the numbe of samples passed to the constructor. Positive integers mean a data point
+    ///   the number of samples passed to the constructor. Positive integers mean a data point
     ///   belongs to a cluster of that label. -1 labels mean that a data point is noise and does
     ///   not belong to any cluster. An Error will be returned if the dimensionality of the input
     ///   vectors are mismatched, if any vector contains non-finite coordinates, or if the passed
@@ -114,15 +124,20 @@ impl<T: Float + Send + Sync> Hdbscan<'_, T> {
     ///assert_eq!(-1, labels[10]);
     /// ```
     pub fn cluster_par(&self) -> Result<Vec<i32>, HdbscanError> {
-        let validator = DataValidator::new(self.data, &self.hp);
-        validator.validate_input_data()?;
-        let calculator = CoreDistanceCalculatorPar::new(self.data, &self.hp);
-        let core_distances = calculator.calc_core_distances();
-        let min_spanning_tree = self.prims_min_spanning_tree(&core_distances);
+        DataValidator::new(self.data, &self.hp).validate_input_data()?;
+
+        let core_dist_calculator = CoreDistanceCalculatorPar::new(self.data, &self.hp);
+        let core_distances = core_dist_calculator.calc_core_distances();
+
+        let mst_calculator =
+            PrimsMinSpanningTreePar::new(self.data, self.hp.dist_metric, &core_distances);
+        let min_spanning_tree = mst_calculator.compute();
+
         let single_linkage_tree = self.make_single_linkage_tree(&min_spanning_tree);
         let condensed_tree = self.condense_tree(&single_linkage_tree);
         let winning_clusters = self.extract_winning_clusters(&condensed_tree);
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
+
         Ok(labelled_data)
     }
 }
@@ -273,61 +288,6 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             labels,
             distance::get_dist_func(&self.hp.dist_metric),
         ))
-    }
-
-    fn prims_min_spanning_tree(&self, core_distances: &[T]) -> Vec<MSTEdge<T>> {
-        let mut in_tree = vec![false; self.n_samples];
-        let mut distances = vec![T::infinity(); self.n_samples];
-        distances[0] = T::zero();
-
-        let mut mst = Vec::with_capacity(self.n_samples);
-
-        let mut left_node_id = 0;
-        let mut right_node_id = 0;
-
-        for _ in 1..self.n_samples {
-            in_tree[left_node_id] = true;
-            let mut current_min_dist = T::infinity();
-
-            for i in 0..self.n_samples {
-                if in_tree[i] {
-                    continue;
-                }
-                let mrd = self.calc_mutual_reachability_dist(left_node_id, i, core_distances);
-                if mrd < distances[i] {
-                    distances[i] = mrd;
-                }
-                if distances[i] < current_min_dist {
-                    right_node_id = i;
-                    current_min_dist = distances[i];
-                }
-            }
-            mst.push(MSTEdge {
-                left_node_id,
-                right_node_id,
-                distance: current_min_dist,
-            });
-            left_node_id = right_node_id;
-        }
-        self.sort_mst_by_dist(&mut mst);
-        mst
-    }
-
-    fn calc_mutual_reachability_dist(&self, a: usize, b: usize, core_distances: &[T]) -> T {
-        let core_dist_a = core_distances[a];
-        let core_dist_b = core_distances[b];
-        let dist_a_b = if self.hp.dist_metric == DistanceMetric::Precalculated {
-            self.data[a][b]
-        } else {
-            self.hp.dist_metric.calc_dist(&self.data[a], &self.data[b])
-        };
-
-        core_dist_a.max(core_dist_b).max(dist_a_b)
-    }
-
-    fn sort_mst_by_dist(&self, min_spanning_tree: &mut [MSTEdge<T>]) {
-        min_spanning_tree
-            .sort_by(|a, b| a.distance.partial_cmp(&b.distance).expect("Invalid floats"));
     }
 
     fn make_single_linkage_tree(&self, min_spanning_tree: &[MSTEdge<T>]) -> Vec<SLTNode<T>> {

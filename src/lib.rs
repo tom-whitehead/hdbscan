@@ -63,5 +63,6 @@ mod distance;
 mod error;
 mod hdbscan;
 mod hyper_parameters;
+mod min_spanning_tree;
 mod union_find;
 mod validation;
