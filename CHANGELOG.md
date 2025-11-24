@@ -1,3 +1,8 @@
+# Version 0.12.0 2025-11-24
+## Changes
+- Improvement to parallel clustering via the `cluster_par` method with parallelisation of the calculation of
+  Prim's minimum spanning tree.
+
 # Version 0.11.0 2025-08-03
 ## Changes
 - Addition of optional `parallel` feature that adds a method `cluster_par` to the `Hdbscan` struct. This method
