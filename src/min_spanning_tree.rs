@@ -140,42 +140,35 @@ pub(crate) mod parallel {
             let mut mst = Vec::with_capacity(n_samples);
 
             let mut left_node_id = 0;
-            let mut right_node_id = 0;
 
             for _ in 1..n_samples {
                 in_tree[left_node_id] = true;
 
-                let updates: Vec<(usize, T)> = (0..n_samples)
-                    .into_par_iter()
-                    .filter(|&i| !in_tree[i])
-                    .map(|i| {
-                        let mrd = self.common.calc_mutual_reachability_dist(left_node_id, i);
-                        (i, mrd)
+                let (min_idx, min_dist) = distances
+                    .par_iter_mut()
+                    .enumerate()
+                    .filter_map(|(i, dist)| {
+                        if in_tree[i] {
+                            None
+                        } else {
+                            let mrd = self.common.calc_mutual_reachability_dist(left_node_id, i);
+                            if mrd < *dist {
+                                *dist = mrd;
+                            }
+                            Some((i, *dist))
+                        }
                     })
-                    .collect();
-
-                let (min_idx, min_dist) = updates
-                    .iter()
-                    .map(|&(i, mrd)| {
-                        let dist = distances[i].min(mrd);
-                        (i, dist)
+                    .min_by(|(_, dist_a), (_, dist_b)| {
+                        dist_a.partial_cmp(dist_b).expect("Invalid floats")
                     })
-                    .min_by(|(_, dist_a), (_, dist_b)| dist_a.partial_cmp(dist_b).unwrap())
-                    .expect("No minimum candidate");
+                    .expect("Malformed distance array");
 
-                updates.into_par_iter().for_each(|(i, mrd)| {
-                    if mrd < distances[i] {
-                        distances[i] = mrd;
-                    }
-                });
-
-                right_node_id = min_idx;
                 mst.push(MSTEdge {
                     left_node_id,
-                    right_node_id,
+                    right_node_id: min_idx,
                     distance: min_dist,
                 });
-                left_node_id = right_node_id;
+                left_node_id = min_idx;
             }
 
             self.common.sort_mst_by_dist(&mut mst);
