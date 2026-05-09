@@ -15,7 +15,11 @@ use num_traits::Float;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
 
-type CondensedTree<T> = Vec<CondensedNode<T>>;
+/// The condensed cluster tree produced internally by HDBSCAN, used to
+/// derive cluster labels. Exposed publicly to enable external
+/// `approximate_predict`-style inference; obtain an instance via
+/// [`Hdbscan::cluster_with_tree`].
+pub type CondensedTree<T> = Vec<CondensedNode<T>>;
 
 /// The HDBSCAN clustering algorithm in Rust. Generic over floating point numeric types.
 #[derive(Debug, Clone, PartialEq)]
@@ -65,6 +69,29 @@ impl<T: Float> Hdbscan<'_, T> {
     ///assert_eq!(-1, labels[10]);
     /// ```
     pub fn cluster(&self) -> Result<Vec<i32>, HdbscanError> {
+        self.cluster_internal().map(|(labels, _tree)| labels)
+    }
+
+    /// Same as [`cluster`](Hdbscan::cluster), but additionally returns
+    /// the condensed cluster tree used internally to derive the cluster
+    /// labels. The condensed tree is required for
+    /// `approximate_predict`-style inference: assigning previously-unseen
+    /// points to existing clusters without re-running the full algorithm.
+    ///
+    /// # Returns
+    /// * A `Result` whose `Ok` contains `(labels, condensed_tree)`.
+    ///   Labels follow the same semantics as [`cluster`](Hdbscan::cluster);
+    ///   the condensed tree is a `Vec<CondensedNode<T>>` describing the
+    ///   cluster hierarchy.
+    pub fn cluster_with_tree(
+        &self,
+    ) -> Result<(Vec<i32>, CondensedTree<T>), HdbscanError> {
+        self.cluster_internal()
+    }
+
+    fn cluster_internal(
+        &self,
+    ) -> Result<(Vec<i32>, CondensedTree<T>), HdbscanError> {
         DataValidator::new(self.data, &self.hp).validate_input_data()?;
 
         let core_dist_calculator = CoreDistanceCalculator::new(self.data, &self.hp);
@@ -79,7 +106,7 @@ impl<T: Float> Hdbscan<'_, T> {
         let winning_clusters = self.extract_winning_clusters(&condensed_tree);
         let labelled_data = self.label_data(&winning_clusters, &condensed_tree);
 
-        Ok(labelled_data)
+        Ok((labelled_data, condensed_tree))
     }
 }
 
@@ -804,5 +831,38 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         } else {
             T::from(1.0 / self.hp.epsilon).unwrap()
         }
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use super::CondensedTree;
+    use crate::data_wrappers::CondensedNode;
+
+    #[test]
+    fn condensed_tree_bincode_roundtrip() {
+        let tree: CondensedTree<f64> = vec![
+            CondensedNode {
+                node_id: 5,
+                parent_node_id: 11,
+                lambda_birth: 0.42,
+                size: 3,
+            },
+            CondensedNode {
+                node_id: 6,
+                parent_node_id: 11,
+                lambda_birth: 0.42,
+                size: 4,
+            },
+        ];
+        let bytes = bincode::serialize(&tree).expect("serialize tree");
+        let decoded: CondensedTree<f64> =
+            bincode::deserialize(&bytes).expect("deserialize tree");
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].node_id, 5);
+        assert_eq!(decoded[0].parent_node_id, 11);
+        assert_eq!(decoded[0].lambda_birth, 0.42);
+        assert_eq!(decoded[0].size, 3);
+        assert_eq!(decoded[1].node_id, 6);
     }
 }
