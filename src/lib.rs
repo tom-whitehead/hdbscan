@@ -51,9 +51,10 @@
 
 pub use crate::centers::Center;
 pub use crate::core_distances::NnAlgorithm;
+pub use crate::data_wrappers::CondensedNode;
 pub use crate::distance::DistanceMetric;
 pub use crate::error::HdbscanError;
-pub use crate::hdbscan::Hdbscan;
+pub use crate::hdbscan::{CondensedTree, Hdbscan};
 pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
 
 mod centers;
