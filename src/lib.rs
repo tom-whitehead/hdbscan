@@ -50,13 +50,16 @@
 //! * [How HDBSCAN Works](https://hdbscan.readthedocs.io/en/latest/how_hdbscan_works.html)
 
 pub use crate::centers::Center;
+pub use crate::cluster_result::HdbscanResult;
 pub use crate::core_distances::NnAlgorithm;
+pub use crate::data_wrappers::CondensedNode;
 pub use crate::distance::DistanceMetric;
 pub use crate::error::HdbscanError;
 pub use crate::hdbscan::Hdbscan;
-pub use crate::hyper_parameters::{HdbscanHyperParams, HyperParamBuilder};
+pub use crate::hyper_parameters::{ClusterSelectionMethod, HdbscanHyperParams, HyperParamBuilder};
 
 mod centers;
+mod cluster_result;
 mod core_distances;
 mod data_wrappers;
 mod distance;

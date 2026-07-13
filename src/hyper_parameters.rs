@@ -3,6 +3,15 @@ use crate::distance::DistanceMetric;
 use num_traits::Num;
 use std::fmt::Display;
 
+/// The method used to select flat clusters from the condensed tree.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ClusterSelectionMethod {
+    /// Excess of Mass — maximizes cluster stability. Default.
+    Eom,
+    /// Leaf — selects the finest-grained (deepest) clusters.
+    Leaf,
+}
+
 // Defaults for parameters
 const MIN_CLUSTER_SIZE_DEFAULT: usize = 5;
 const MAX_CLUSTER_SIZE_DEFAULT: usize = usize::MAX; // Set to a value that will never be triggered
@@ -10,6 +19,7 @@ const ALLOW_SINGLE_CLUSTER_DEFAULT: bool = false;
 const EPSILON_DEFAULT: f64 = 0.0;
 const DISTANCE_METRIC_DEFAULT: DistanceMetric = DistanceMetric::Euclidean;
 const NN_ALGORITHM_DEFAULT: NnAlgorithm = NnAlgorithm::Auto;
+const CLUSTER_SELECTION_METHOD_DEFAULT: ClusterSelectionMethod = ClusterSelectionMethod::Eom;
 
 // Valid minimums/left bounds of parameters
 const MIN_CLUSTER_SIZE_MINIMUM: usize = 2;
@@ -29,6 +39,7 @@ pub struct HdbscanHyperParams {
     pub(crate) epsilon: f64,
     pub(crate) dist_metric: DistanceMetric,
     pub(crate) nn_algo: NnAlgorithm,
+    pub(crate) cluster_selection_method: ClusterSelectionMethod,
 }
 
 /// Builder object to set custom hyper parameters.
@@ -41,6 +52,7 @@ pub struct HyperParamBuilder {
     epsilon: Option<f64>,
     dist_metric: Option<DistanceMetric>,
     nn_algo: Option<NnAlgorithm>,
+    cluster_selection_method: Option<ClusterSelectionMethod>,
 }
 
 impl HdbscanHyperParams {
@@ -62,6 +74,7 @@ impl HdbscanHyperParams {
             epsilon: None,
             dist_metric: None,
             nn_algo: None,
+            cluster_selection_method: None,
         }
     }
 }
@@ -189,6 +202,23 @@ impl HyperParamBuilder {
         self
     }
 
+    /// Sets the cluster selection method. EOM (Excess of Mass) maximizes overall cluster
+    /// stability, while Leaf selects the finest-grained (deepest) clusters in the condensed
+    /// tree. Defaults to EOM.
+    ///
+    /// # Parameters
+    /// * cluster_selection_method - the cluster selection method
+    ///
+    /// # Returns
+    /// * the hyper parameter configuration builder
+    pub fn cluster_selection_method(
+        mut self,
+        cluster_selection_method: ClusterSelectionMethod,
+    ) -> HyperParamBuilder {
+        self.cluster_selection_method = Some(cluster_selection_method);
+        self
+    }
+
     /// Finishes the building of the hyper parameter configuration. A call to this method is
     /// required to exist the builder pattern and complete the construction of the hyper parameters.
     ///
@@ -206,6 +236,9 @@ impl HyperParamBuilder {
             epsilon: self.epsilon.unwrap_or(EPSILON_DEFAULT),
             dist_metric: self.dist_metric.unwrap_or(DISTANCE_METRIC_DEFAULT),
             nn_algo: self.nn_algo.unwrap_or(NN_ALGORITHM_DEFAULT),
+            cluster_selection_method: self
+                .cluster_selection_method
+                .unwrap_or(CLUSTER_SELECTION_METHOD_DEFAULT),
         }
     }
 
