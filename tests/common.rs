@@ -6,8 +6,7 @@ use num_traits::Float;
 use std::collections::HashSet;
 
 type ClusterFn = fn(&Hdbscan<f32>) -> Result<Vec<i32>, HdbscanError>;
-pub(crate) type DetailedClusterFn =
-    fn(&Hdbscan<f32>) -> Result<HdbscanResult<f32>, HdbscanError>;
+pub(crate) type DetailedClusterFn = fn(&Hdbscan<f32>) -> Result<HdbscanResult<f32>, HdbscanError>;
 
 pub(crate) fn test_cluster(cluster_fn: ClusterFn) {
     let data = cluster_test_data();
@@ -389,7 +388,11 @@ pub(crate) fn test_condensed_tree_has_all_points(cluster_fn: DetailedClusterFn) 
         .map(|node| node.node_id)
         .collect();
     for i in 0..n {
-        assert!(point_ids.contains(&i), "Point {} missing from condensed tree", i);
+        assert!(
+            point_ids.contains(&i),
+            "Point {} missing from condensed tree",
+            i
+        );
     }
 }
 
@@ -413,7 +416,12 @@ pub(crate) fn test_probabilities_range(cluster_fn: DetailedClusterFn) {
     let clusterer = Hdbscan::default_hyper_params(&data);
     let result = cluster_fn(&clusterer).unwrap();
     for (i, &p) in result.probabilities.iter().enumerate() {
-        assert!(p >= 0.0 && p <= 1.0, "Probability {} out of range at index {}", p, i);
+        assert!(
+            p >= 0.0 && p <= 1.0,
+            "Probability {} out of range at index {}",
+            p,
+            i
+        );
     }
 }
 
@@ -459,7 +467,12 @@ pub(crate) fn test_outlier_scores_range(cluster_fn: DetailedClusterFn) {
     let clusterer = Hdbscan::default_hyper_params(&data);
     let result = cluster_fn(&clusterer).unwrap();
     for (i, &s) in result.outlier_scores.iter().enumerate() {
-        assert!(s >= 0.0 && s <= 1.0, "Outlier score {} out of range at index {}", s, i);
+        assert!(
+            s >= 0.0 && s <= 1.0,
+            "Outlier score {} out of range at index {}",
+            s,
+            i
+        );
     }
 }
 
@@ -490,81 +503,6 @@ pub(crate) fn test_outlier_scores_distant_point_high(cluster_fn: DetailedCluster
         distant_score,
         avg_clustered
     );
-}
-
-pub(crate) fn test_membership_vectors_shape(cluster_fn: DetailedClusterFn) {
-    let data = cluster_test_data();
-    let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = cluster_fn(&clusterer).unwrap();
-    let vectors = result.all_points_membership_vectors();
-    let n_clusters = result
-        .labels
-        .iter()
-        .filter(|&&l| l != -1)
-        .collect::<HashSet<_>>()
-        .len();
-    assert_eq!(vectors.len(), data.len());
-    for row in &vectors {
-        assert_eq!(row.len(), n_clusters);
-    }
-}
-
-pub(crate) fn test_membership_vectors_sum_to_one(cluster_fn: DetailedClusterFn) {
-    let data = cluster_test_data();
-    let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = cluster_fn(&clusterer).unwrap();
-    let vectors = result.all_points_membership_vectors();
-    for (i, row) in vectors.iter().enumerate() {
-        let sum: f32 = row.iter().sum();
-        assert!(
-            (sum - 1.0).abs() < 1e-5,
-            "Row {} sums to {} instead of 1.0",
-            i,
-            sum
-        );
-    }
-}
-
-pub(crate) fn test_membership_vectors_range(cluster_fn: DetailedClusterFn) {
-    let data = cluster_test_data();
-    let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = cluster_fn(&clusterer).unwrap();
-    let vectors = result.all_points_membership_vectors();
-    for (i, row) in vectors.iter().enumerate() {
-        for (j, &v) in row.iter().enumerate() {
-            assert!(
-                v >= 0.0 && v <= 1.0,
-                "Membership [{},{}] = {} out of range",
-                i,
-                j,
-                v
-            );
-        }
-    }
-}
-
-pub(crate) fn test_membership_dominant_matches_label(cluster_fn: DetailedClusterFn) {
-    let data = cluster_test_data();
-    let clusterer = Hdbscan::default_hyper_params(&data);
-    let result = cluster_fn(&clusterer).unwrap();
-    let vectors = result.all_points_membership_vectors();
-    for (i, &label) in result.labels.iter().enumerate() {
-        if label == -1 {
-            continue;
-        }
-        let row = &vectors[i];
-        let argmax = row
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(idx, _)| idx)
-            .unwrap();
-        assert_eq!(
-            argmax, label as usize,
-            "Point {} argmax {} != label {}",
-            i, argmax, label
-        );
-    }
 }
 
 // ── Leaf cluster selection tests ────────────────────────────────────────────
@@ -732,9 +670,7 @@ pub(crate) fn test_leaf_allow_single_cluster_epsilon(cluster_fn: ClusterFn) {
     assert_eq!(1, n_noise, "Should have exactly 1 noise point");
 }
 
-pub(crate) fn test_leaf_detailed_probabilities_and_outlier_scores(
-    cluster_fn: DetailedClusterFn,
-) {
+pub(crate) fn test_leaf_detailed_probabilities_and_outlier_scores(cluster_fn: DetailedClusterFn) {
     let data = cluster_test_data();
     let hp = HdbscanHyperParams::builder()
         .cluster_selection_method(ClusterSelectionMethod::Leaf)
@@ -749,7 +685,12 @@ pub(crate) fn test_leaf_detailed_probabilities_and_outlier_scores(
 
     // Probabilities in [0,1]; noise=0, clustered>0
     for (i, &p) in result.probabilities.iter().enumerate() {
-        assert!(p >= 0.0 && p <= 1.0, "Probability {} out of range at {}", p, i);
+        assert!(
+            p >= 0.0 && p <= 1.0,
+            "Probability {} out of range at {}",
+            p,
+            i
+        );
         if result.labels[i] == -1 {
             assert_eq!(p, 0.0, "Noise point {} should have probability 0", i);
         } else {
@@ -759,7 +700,12 @@ pub(crate) fn test_leaf_detailed_probabilities_and_outlier_scores(
 
     // Outlier scores in [0,1]
     for (i, &s) in result.outlier_scores.iter().enumerate() {
-        assert!(s >= 0.0 && s <= 1.0, "Outlier score {} out of range at {}", s, i);
+        assert!(
+            s >= 0.0 && s <= 1.0,
+            "Outlier score {} out of range at {}",
+            s,
+            i
+        );
     }
 
     // Distant point (index 10) has higher outlier score than average clustered point
@@ -781,68 +727,6 @@ pub(crate) fn test_leaf_detailed_probabilities_and_outlier_scores(
 
     // Condensed tree not empty
     assert!(!result.condensed_tree.is_empty());
-}
-
-pub(crate) fn test_leaf_detailed_membership_vectors(cluster_fn: DetailedClusterFn) {
-    let data = cluster_test_data();
-    let hp = HdbscanHyperParams::builder()
-        .cluster_selection_method(ClusterSelectionMethod::Leaf)
-        .build();
-    let clusterer = Hdbscan::new(&data, hp);
-    let result = cluster_fn(&clusterer).unwrap();
-    let vectors = result.all_points_membership_vectors();
-
-    let n_clusters = result
-        .labels
-        .iter()
-        .filter(|&&l| l != -1)
-        .collect::<HashSet<_>>()
-        .len();
-
-    // Shape is n_points x n_clusters
-    assert_eq!(vectors.len(), data.len());
-    for row in &vectors {
-        assert_eq!(row.len(), n_clusters);
-    }
-
-    // Rows sum to ~1.0; all values in [0,1]
-    for (i, row) in vectors.iter().enumerate() {
-        let sum: f32 = row.iter().sum();
-        assert!(
-            (sum - 1.0).abs() < 1e-5,
-            "Row {} sums to {} instead of 1.0",
-            i,
-            sum
-        );
-        for (j, &v) in row.iter().enumerate() {
-            assert!(
-                v >= 0.0 && v <= 1.0,
-                "Membership [{},{}] = {} out of range",
-                i,
-                j,
-                v
-            );
-        }
-    }
-
-    // Dominant membership matches label for clustered points
-    for (i, &label) in result.labels.iter().enumerate() {
-        if label == -1 {
-            continue;
-        }
-        let row = &vectors[i];
-        let argmax = row
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(idx, _)| idx)
-            .unwrap();
-        assert_eq!(
-            argmax, label as usize,
-            "Point {} argmax {} != label {}",
-            i, argmax, label
-        );
-    }
 }
 
 pub(crate) fn test_leaf_manhattan_distance(cluster_fn: ClusterFn) {
@@ -918,9 +802,7 @@ pub(crate) fn test_default_is_eom(cluster_fn: ClusterFn) {
     ];
 
     // Default (no cluster_selection_method specified)
-    let hp_default = HdbscanHyperParams::builder()
-        .min_cluster_size(3)
-        .build();
+    let hp_default = HdbscanHyperParams::builder().min_cluster_size(3).build();
     let default_result = cluster_fn(&Hdbscan::new(&data, hp_default)).unwrap();
 
     // Explicit EOM

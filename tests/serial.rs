@@ -72,12 +72,7 @@ define_serial_detailed_test!(test_probabilities_length);
 define_serial_detailed_test!(test_outlier_scores_range);
 define_serial_detailed_test!(test_outlier_scores_length);
 define_serial_detailed_test!(test_outlier_scores_distant_point_high);
-define_serial_detailed_test!(test_membership_vectors_shape);
-define_serial_detailed_test!(test_membership_vectors_sum_to_one);
-define_serial_detailed_test!(test_membership_vectors_range);
-define_serial_detailed_test!(test_membership_dominant_matches_label);
 define_serial_detailed_test!(test_leaf_detailed_probabilities_and_outlier_scores);
-define_serial_detailed_test!(test_leaf_detailed_membership_vectors);
 
 #[test]
 fn test_duplicate_points_no_nan() {
@@ -104,17 +99,20 @@ fn test_duplicate_points_no_nan() {
 
     for (i, &p) in result.probabilities.iter().enumerate() {
         assert!(!p.is_nan(), "Probability is NaN at index {}", i);
-        assert!(p >= 0.0 && p <= 1.0, "Probability {} out of range at index {}", p, i);
+        assert!(
+            p >= 0.0 && p <= 1.0,
+            "Probability {} out of range at index {}",
+            p,
+            i
+        );
     }
     for (i, &s) in result.outlier_scores.iter().enumerate() {
         assert!(!s.is_nan(), "Outlier score is NaN at index {}", i);
-        assert!(s >= 0.0 && s <= 1.0, "Outlier score {} out of range at index {}", s, i);
-    }
-
-    let memberships = result.all_points_membership_vectors();
-    for (i, row) in memberships.iter().enumerate() {
-        for (j, &v) in row.iter().enumerate() {
-            assert!(!v.is_nan(), "Membership NaN at point {} cluster {}", i, j);
-        }
+        assert!(
+            s >= 0.0 && s <= 1.0,
+            "Outlier score {} out of range at index {}",
+            s,
+            i
+        );
     }
 }

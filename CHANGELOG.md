@@ -1,3 +1,10 @@
+# Version 0.13.0 2026-03-20
+## Changes
+- Added the `Leaf` cluster selection method alongside the default Excess of Mass (`Eom`) method.
+- Added `cluster_detailed` and `cluster_detailed_par`, which return labels, membership probabilities, the condensed
+  tree, and GLOSH outlier scores in an `HdbscanResult`.
+- Prevented duplicate points with zero mutual distance from producing `NaN` probabilities or outlier scores.
+
 # Version 0.12.0 2025-11-24
 ## Changes
 - Improvement to parallel clustering via the `cluster_par` method with parallelisation of the calculation of

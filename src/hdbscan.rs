@@ -1,9 +1,10 @@
+use crate::cluster_result::HdbscanResult;
 #[cfg(feature = "parallel")]
 use crate::core_distances::parallel::CoreDistanceCalculatorPar;
 #[cfg(feature = "serial")]
 use crate::core_distances::serial::CoreDistanceCalculator;
-use crate::cluster_result::HdbscanResult;
 use crate::data_wrappers::{CondensedNode, MSTEdge, SLTNode};
+use crate::hyper_parameters::ClusterSelectionMethod;
 #[cfg(feature = "parallel")]
 use crate::min_spanning_tree::parallel::PrimsMinSpanningTreePar;
 #[cfg(feature = "serial")]
@@ -11,7 +12,6 @@ use crate::min_spanning_tree::serial::PrimsMinSpanningTree;
 use crate::min_spanning_tree::MinSpanningTree;
 use crate::union_find::UnionFind;
 use crate::validation::DataValidator;
-use crate::hyper_parameters::ClusterSelectionMethod;
 use crate::{distance, Center, DistanceMetric, HdbscanError, HdbscanHyperParams};
 use num_traits::Float;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -90,8 +90,7 @@ impl<T: Float> Hdbscan<'_, T> {
     ///
     /// # Returns
     /// * An [`HdbscanResult`] containing labels, probabilities, condensed tree, and
-    ///   outlier scores. Supports further analysis via
-    ///   [`all_points_membership_vectors`](HdbscanResult::all_points_membership_vectors).
+    ///   outlier scores.
     pub fn cluster_detailed(&self) -> Result<HdbscanResult<T>, HdbscanError> {
         DataValidator::new(self.data, &self.hp).validate_input_data()?;
 
@@ -164,8 +163,7 @@ impl<T: Float + Send + Sync> Hdbscan<'_, T> {
     ///
     /// # Returns
     /// * An [`HdbscanResult`] containing labels, probabilities, condensed tree, and
-    ///   outlier scores. Supports further analysis via
-    ///   [`all_points_membership_vectors`](HdbscanResult::all_points_membership_vectors).
+    ///   outlier scores.
     pub fn cluster_detailed_par(&self) -> Result<HdbscanResult<T>, HdbscanError> {
         DataValidator::new(self.data, &self.hp).validate_input_data()?;
 
@@ -343,8 +341,11 @@ impl<'a, T: Float> Hdbscan<'a, T> {
     fn build_detailed_result(&self, mst: &[MSTEdge<T>]) -> HdbscanResult<T> {
         let intermediates = self.run_pipeline(mst);
         let death_lambdas = self.compute_death_lambdas(&intermediates.condensed_tree);
-        let probabilities =
-            self.compute_probabilities(&intermediates.labels, &intermediates.condensed_tree);
+        let probabilities = self.compute_probabilities(
+            &intermediates.labels,
+            &intermediates.winning_clusters,
+            &intermediates.condensed_tree,
+        );
         let outlier_scores =
             self.compute_outlier_scores(&intermediates.condensed_tree, &death_lambdas);
         HdbscanResult::new(
@@ -352,15 +353,13 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             probabilities,
             intermediates.condensed_tree,
             outlier_scores,
-            intermediates.winning_clusters,
-            death_lambdas,
-            self.n_samples,
         )
     }
 
     fn compute_probabilities(
         &self,
         labels: &[i32],
+        winning_clusters: &[usize],
         condensed_tree: &[CondensedNode<T>],
     ) -> Vec<T> {
         // Max lambda per cluster: max lambda_birth among all direct children
@@ -372,40 +371,40 @@ impl<'a, T: Float> Hdbscan<'a, T> {
             }
         }
 
-        // Point info: point -> (parent_cluster, point_lambda)
-        let mut point_info: Vec<(usize, T)> = vec![(0, T::zero()); self.n_samples];
-        for node in condensed_tree {
-            if node.node_id < self.n_samples {
-                point_info[node.node_id] = (node.parent_node_id, node.lambda_birth);
-            }
-        }
-
         let mut probabilities = vec![T::zero(); self.n_samples];
-        for p in 0..self.n_samples {
-            if labels[p] == -1 {
+        for node in condensed_tree {
+            let point_id = node.node_id;
+            if point_id >= self.n_samples {
                 continue;
             }
-            let (parent_cluster, point_lambda) = point_info[p];
-            let cluster_max = max_lambda.get(&parent_cluster).copied().unwrap_or(T::one());
+
+            let label = labels[point_id];
+            if label == -1 {
+                continue;
+            }
+
+            let point_lambda = node.lambda_birth;
+            let winning_cluster_id = winning_clusters[label as usize];
+            let cluster_max = max_lambda
+                .get(&winning_cluster_id)
+                .copied()
+                .unwrap_or(T::one());
             if cluster_max.is_infinite() {
                 // All points merged at distance 0 (duplicates) — maximally connected.
-                probabilities[p] = T::one();
+                probabilities[point_id] = T::one();
             } else if cluster_max > T::zero() {
                 let capped = if point_lambda < cluster_max {
                     point_lambda
                 } else {
                     cluster_max
                 };
-                probabilities[p] = capped / cluster_max;
+                probabilities[point_id] = capped / cluster_max;
             }
         }
         probabilities
     }
 
-    fn compute_death_lambdas(
-        &self,
-        condensed_tree: &[CondensedNode<T>],
-    ) -> HashMap<usize, T> {
+    fn compute_death_lambdas(&self, condensed_tree: &[CondensedNode<T>]) -> HashMap<usize, T> {
         // Step 1: for each cluster, max lambda_birth among direct children
         let mut max_child_lambda: HashMap<usize, T> = HashMap::new();
         for node in condensed_tree {
@@ -446,10 +445,7 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         // Step 5: initialize from max child lambda
         let mut death_lambdas: HashMap<usize, T> = HashMap::new();
         for &id in &sorted_ids {
-            death_lambdas.insert(
-                id,
-                max_child_lambda.get(&id).copied().unwrap_or(T::zero()),
-            );
+            death_lambdas.insert(id, max_child_lambda.get(&id).copied().unwrap_or(T::zero()));
         }
 
         // Step 6: propagate bottom-up
@@ -1038,5 +1034,58 @@ impl<'a, T: Float> Hdbscan<'a, T> {
         } else {
             T::from(1.0 / self.hp.epsilon).unwrap()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn probabilities_are_normalized_by_the_winning_cluster() {
+        let data = vec![vec![0.0_f32]; 3];
+        let clusterer = Hdbscan::default_hyper_params(&data);
+        let labels = vec![0, 0, -1];
+        let winning_clusters = vec![4];
+        // Cluster 4 wins even though the clustered points have cluster 5 as their
+        // immediate parent. Cluster 4 dies at lambda 2; cluster 5 dies at lambda 10.
+        let condensed_tree = vec![
+            CondensedNode {
+                node_id: 4,
+                parent_node_id: 3,
+                lambda_birth: 1.0,
+                size: 2,
+            },
+            CondensedNode {
+                node_id: 5,
+                parent_node_id: 4,
+                lambda_birth: 2.0,
+                size: 2,
+            },
+            CondensedNode {
+                node_id: 0,
+                parent_node_id: 5,
+                lambda_birth: 10.0,
+                size: 1,
+            },
+            CondensedNode {
+                node_id: 1,
+                parent_node_id: 5,
+                lambda_birth: 5.0,
+                size: 1,
+            },
+            CondensedNode {
+                node_id: 2,
+                parent_node_id: 3,
+                lambda_birth: 0.5,
+                size: 1,
+            },
+        ];
+
+        let probabilities =
+            clusterer.compute_probabilities(&labels, &winning_clusters, &condensed_tree);
+
+        // Immediate-parent normalization would give point 1 a probability of 0.5.
+        assert_eq!(probabilities, vec![1.0, 1.0, 0.0]);
     }
 }
